@@ -1,0 +1,8 @@
+# The runner's work: Harbor datasets and jobs (go run ./cmd/evals run).
+/.work/
+# Harbor's default job directory, for harbor run without -o.
+/jobs/
+# Editors.
+/.idea/
+/.vscode/
+.DS_Store

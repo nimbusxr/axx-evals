@@ -1,0 +1,118 @@
+name: check
+
+# Everything but a model, on every pull request and push to main: the Go tests,
+# the workflows' lint, and the plumbing run through Harbor. The oracle agent applies
+# each task's reference solution, with axx and without (every trial must get reward
+# 1), the nop agent does nothing (every trial must get 0). No secrets, no model, no
+# cost.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HARBOR_VERSION: 0.23.0
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [[ -n "$unformatted" ]]; then
+            echo "::error::not gofmt'ed: $unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
+      # Includes the generated task files being up to date (`go run ./cmd/evals sync`).
+      - run: go test ./...
+
+  workflows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      # The runner has shellcheck, so actionlint checks the run: scripts too.
+      - name: actionlint
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: zizmor
+        run: uvx zizmor@1.30.1 --min-severity medium .github/workflows
+
+  plumbing:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      # The images, their sidecars and the trials' containers need more disk than
+      # a runner has free.
+      - name: free disk space (in the background)
+        run: (sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/share/swift; touch "$RUNNER_TEMP/disk-freed") > /dev/null 2>&1 &
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Install Harbor
+        run: uv tool install "harbor==$HARBOR_VERSION"
+      - name: wait for the disk space
+        run: |
+          for _ in $(seq 300); do [ -f "$RUNNER_TEMP/disk-freed" ] && break; sleep 2; done
+          [ -f "$RUNNER_TEMP/disk-freed" ] || { echo "::error::the disk space was not freed within 10 minutes"; exit 1; }
+          df -h /
+      - name: Build the images
+        run: go run ./cmd/evals images
+      # none: every task with axx; plain: the versions without axx.
+      - name: Every reference solution passes (oracle)
+        run: go run ./cmd/evals run --agent oracle --conditions none,plain --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle
+      - name: Doing nothing fails (nop)
+        run: go run ./cmd/evals run --agent nop --conditions none,plain --skip-images --concurrency 2 --expect-reward 0 --out results/ci-nop
+      # The conditions change only the starting project: one task under each is enough.
+      - name: The agent aids build (oracle, one task, every condition)
+        run: go run ./cmd/evals run --agent oracle --conditions skills,mcp,both --tasks rest-crud-happy-path --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle-conditions
+      # Weak or cheating answers (testdata/negative/README.md) must not earn a reward.
+      - name: The negative answers fail
+        run: |
+          go run ./cmd/evals check --patch testdata/negative/weak-assertions rest-crud-happy-path
+          go run ./cmd/evals check --patch testdata/negative/captured-variable sql-manifest-import
+      - name: Summary
+        if: always()
+        run: |
+          for f in results/ci-oracle.md results/ci-nop.md results/ci-oracle-conditions.md; do
+            if [[ -f "$f" ]]; then cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: failure()
+        with:
+          name: plumbing-jobs
+          path: |
+            results/ci-*
+            .work/jobs/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 7

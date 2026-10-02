@@ -1,0 +1,11 @@
+# Build context of images/base/Dockerfile: the repository root, minus what the
+# images never need.
+.git
+.work
+.idea
+jobs
+tasks
+results
+testdata
+**/__pycache__
+**/node_modules

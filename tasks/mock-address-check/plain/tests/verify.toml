@@ -1,0 +1,6 @@
+# What the verifier checks for this task without axx (see README.md, "The plain condition").
+mode = "command"
+allowed = ["**"]
+protected = ["README.md", "openapi.yaml", "docs/**", "infra/**", "schemas/**"]
+required = ["acceptance-tests.sh"]
+mutants = ["skips-address-check", "address-check-without-api-key", "ignores-undeliverable"]

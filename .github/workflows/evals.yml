@@ -1,0 +1,186 @@
+name: evals
+
+# The agent evaluations (README.md): OpenCode, with one of the evaluated models
+# through OpenRouter, on every task under each condition. They cost model credits,
+# so they only run on demand, from main: the OPENROUTER_API_KEY secret lives in the
+# evals environment, which only main can use (Infisical syncs it there).
+#
+# One job per condition, one after another, so a run is one trial at a time and no
+# job comes near GitHub's 6 hours; the report job then merges them.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: The model (pinned OpenRouter id; see README.md for why these)
+        type: choice
+        options:
+          - openrouter/openai/gpt-6-luna
+          - openrouter/anthropic/claude-sonnet-5.5
+          - openrouter/openai/gpt-6.1-sol
+          - openrouter/google/gemini-3.1-pro-preview
+          - openrouter/z-ai/glm-5.3
+        default: openrouter/openai/gpt-6-luna
+      conditions:
+        description: Comma-separated conditions from conditions.toml
+        type: string
+        default: none,skills,mcp,both,plain
+      tasks:
+        description: Comma-separated task ids (empty for all)
+        type: string
+        default: ""
+      attempts:
+        description: Trials per task and condition
+        type: string
+        default: "1"
+      gate:
+        description: Fail when a condition scores more than 10 points below the model's baseline (results/baseline-<model>.json)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# One run at a time, whatever the model: they share the key's credit.
+concurrency:
+  group: evals
+  cancel-in-progress: false
+
+env:
+  AGENT: opencode
+  OPENCODE_VERSION: 1.18.34
+  HARBOR_VERSION: 0.23.0
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      conditions: ${{ steps.plan.outputs.conditions }}
+      slug: ${{ steps.plan.outputs.slug }}
+    steps:
+      - id: plan
+        env:
+          CONDITIONS: ${{ inputs.conditions }}
+          MODEL: ${{ inputs.model }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::evals run from main only"
+            exit 1
+          fi
+          echo "conditions=$(jq -cn --arg c "$CONDITIONS" '$c | split(",") | map(gsub("^ +| +$"; "")) | map(select(. != ""))')" >> "$GITHUB_OUTPUT"
+          echo "slug=$(tr -c 'a-zA-Z0-9.\n-' '-' <<< "${MODEL#openrouter/}")" >> "$GITHUB_OUTPUT"
+
+  condition:
+    needs: plan
+    runs-on: ubuntu-24.04
+    environment: evals
+    timeout-minutes: 350
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        condition: ${{ fromJSON(needs.plan.outputs.conditions) }}
+    steps:
+      - name: free disk space (in the background)
+        run: (sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/share/swift; touch "$RUNNER_TEMP/disk-freed") > /dev/null 2>&1 &
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Install Harbor
+        run: uv tool install "harbor==$HARBOR_VERSION"
+      - name: wait for the disk space
+        run: |
+          for _ in $(seq 300); do [ -f "$RUNNER_TEMP/disk-freed" ] && break; sleep 2; done
+          [ -f "$RUNNER_TEMP/disk-freed" ] || { echo "::error::the disk space was not freed within 10 minutes"; exit 1; }
+          df -h /
+      - name: Build the images
+        run: go run ./cmd/evals images
+      - name: Run the condition
+        env:
+          MODEL: ${{ inputs.model }}
+          CONDITION: ${{ matrix.condition }}
+          TASKS: ${{ inputs.tasks }}
+          ATTEMPTS: ${{ inputs.attempts }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [[ -z "$OPENROUTER_API_KEY" ]]; then
+            echo "::error::OPENROUTER_API_KEY is not set in the evals environment"
+            exit 1
+          fi
+          args=(--agent "$AGENT" --model "$MODEL" --ak "version=$OPENCODE_VERSION" --conditions "$CONDITION"
+            --attempts "$ATTEMPTS" --concurrency 1 --skip-images --jobs-dir .work/jobs --out "results/ci-$CONDITION")
+          if [[ -n "$TASKS" ]]; then args+=(--tasks "$TASKS"); fi
+          go run ./cmd/evals run "${args[@]}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: evals-${{ matrix.condition }}
+          path: |
+            results/ci-*
+            .work/jobs/
+            .work/datasets/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 90
+
+  report:
+    needs: [plan, condition]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Install Harbor
+        run: uv tool install "harbor==$HARBOR_VERSION"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: evals-*
+          path: conditions
+      - name: Merge the conditions
+        id: report
+        env:
+          MODEL: ${{ inputs.model }}
+          SLUG: ${{ needs.plan.outputs.slug }}
+          CONDITIONS: ${{ needs.plan.outputs.conditions }}
+        run: |
+          axx=$(sed -n 's/^AXX_VERSION=//p' images/base/axx.env)
+          args=(--agent "$AGENT" --model "$MODEL" --axx-version "$axx" --out "results/ci-$SLUG")
+          for c in $(jq -r '.[]' <<< "$CONDITIONS"); do
+            for job in conditions/evals-"$c"/.work/jobs/*-"$c"; do
+              if [[ -d "$job" ]]; then args+=(--job "$c=$job"); fi
+            done
+          done
+          go run ./cmd/evals report "${args[@]}"
+          cat "results/ci-$SLUG.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Compare with the baseline
+        if: inputs.gate
+        env:
+          SLUG: ${{ needs.plan.outputs.slug }}
+        run: |
+          baseline="results/baseline-$SLUG.json"
+          if [[ ! -f "$baseline" ]]; then
+            echo "No $baseline yet: nothing to compare with." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          { echo "## Compared with $baseline"; echo; } >> "$GITHUB_STEP_SUMMARY"
+          go run ./cmd/evals compare "$baseline" "results/ci-$SLUG.json" --max-drop 10 | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: evals-results
+          path: results/ci-*
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 90

@@ -1,0 +1,9 @@
+# What the verifier checks for this task (see README.md, "How a task is verified").
+# The first run is a plain `axx run`: axx must start the service from the agent's axx.yaml.
+# axx init also writes axx-packs.yaml and .gitattributes.
+allowed = ["axx.yaml", "axx.*.yaml", "axx-packs.yaml", "axx-packs.lock", ".gitattributes", "features/**", "seeds/**", ".github/**"]
+required = ["axx.yaml", "features/**/*.feature"]
+config_keys = ["*"]
+start_apps = true
+min_scenarios = 2
+mutants = ["wrong-status-on-duplicate", "wrong-status-on-create"]
