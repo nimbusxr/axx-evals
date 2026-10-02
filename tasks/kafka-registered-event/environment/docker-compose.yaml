@@ -2,6 +2,8 @@
 # Infrastructure next to the main container (Harbor defines main itself).
 services:
   main:
+    extra_hosts:
+      - host.docker.internal:host-gateway
     environment:
       PARCELS_KAFKA_BROKERS: kafka:9092
     depends_on:

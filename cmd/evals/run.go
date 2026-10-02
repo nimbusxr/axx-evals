@@ -105,6 +105,16 @@ func cmdRun(args []string) error {
 	if err := os.WriteFile(retryConfig, retries, 0o644); err != nil {
 		return err
 	}
+	// OpenCode's requests to OpenRouter go through the rate-limit proxy
+	// (internal/ratelimit): it waits out the provider's limit, whatever it
+	// is, and records the waits, which the results leave out.
+	var mp *modelProxy
+	if *agent == "opencode" && strings.HasPrefix(*model, "openrouter/") && !*dry {
+		if mp, err = startModelProxy(); err != nil {
+			return fmt.Errorf("starting the rate-limit proxy: %w", err)
+		}
+		defer mp.stop()
+	}
 	jobs := map[string]string{}
 	var skipped []results.Skipped
 	var failed []string // conditions whose harbor run failed
@@ -134,6 +144,9 @@ func cmdRun(args []string) error {
 		for _, kv := range agentKwargs {
 			hargs = append(hargs, "--ak", kv)
 		}
+		if mp != nil {
+			hargs = append(hargs, "--ak", "opencode_config="+mp.config, "--agent-timeout-multiplier", agentTimeoutMultiplier)
+		}
 		fmt.Printf("== condition %s: %s %s\n", n, *harbor, strings.Join(hargs, " "))
 		jobs[n] = filepath.Join(*jobsDir, jobName)
 		if *dry {
@@ -145,6 +158,11 @@ func cmdRun(args []string) error {
 		if err := runStreaming(*harbor, hargs...); err != nil {
 			fmt.Fprintf(os.Stderr, "harbor run for condition %s failed: %v\n", n, err)
 			failed = append(failed, n)
+		}
+		if mp != nil {
+			if err := mp.writeWaits(jobs[n]); err != nil {
+				return fmt.Errorf("writing the rate-limit waits of condition %s: %w", n, err)
+			}
 		}
 	}
 	if *dry {

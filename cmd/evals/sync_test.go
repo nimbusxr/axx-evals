@@ -76,3 +76,21 @@ func TestPlainExclusions(t *testing.T) {
 		t.Errorf("project-setup plain does not run %q", want)
 	}
 }
+
+// The rate-limit proxy ties a request to its trial by the agent container's
+// name, which Harbor derives from the trial's (in lower case).
+func TestHarborContainerNames(t *testing.T) {
+	for name, want := range map[string]string{
+		"/rest-crud-happy-path__kzffvox__env-main-1":  "rest-crud-happy-path__kzffvox",
+		"openapi-reject-invalid__edgjk4l__env-main-1": "openapi-reject-invalid__edgjk4l",
+		"/rest-crud-happy-path__kzffvox__env-mongo-1": "",
+	} {
+		got := ""
+		if m := harborContainer.FindStringSubmatch(name); m != nil {
+			got = m[1]
+		}
+		if got != want {
+			t.Errorf("%s: got %q, want %q", name, got, want)
+		}
+	}
+}

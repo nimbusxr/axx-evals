@@ -1,10 +1,12 @@
 package results
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func file(agent string, rewards map[string]map[string]float64) *File {
@@ -104,7 +106,7 @@ func TestFromHarborJob(t *testing.T) {
 	// though what it spent counts.
 	trial("a__3", `{"task_name":"axx-evals/a","task_id":{"path":"/x/a"},"verifier_result":{"rewards":{"reward":1}},"exception_info":{"exception_type":"ApiRateLimitError"},"agent_result":{"cost_usd":0.25}}`, "")
 	trial("c__1", `{"task_name":"axx-evals/c","task_id":{"path":"c"},"verifier_result":null,"exception_info":{"exception_type":"RuntimeError"}}`, "")
-	res, err := FromHarborJob(job)
+	res, err := FromHarborJob(job, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,5 +168,49 @@ func TestUnscoredMakesTheRunIncomplete(t *testing.T) {
 	}
 	if md := f.Markdown(); !strings.Contains(md, "**Incomplete run:**") || !strings.Contains(md, "2/2 (2 not scored)") {
 		t.Errorf("markdown:\n%s", md)
+	}
+}
+
+// The waits on the rate limit are not the agent's: its working time leaves
+// them out, the budget holds it to that working time, and a trial Harbor
+// timed out only because of the waits is not scored.
+func TestRateLimitWaitsAreLeftOut(t *testing.T) {
+	job := t.TempDir()
+	trial := func(name, body string) {
+		d := filepath.Join(job, name)
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, "result.json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func(secs int) string {
+		start := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+		return fmt.Sprintf(`"agent_execution":{"started_at":%q,"finished_at":%q}`, start.Format(time.RFC3339Nano), start.Add(time.Duration(secs)*time.Second).Format(time.RFC3339Nano))
+	}
+	// Ran 100 s, 60 of them waiting: 40 s of work.
+	trial("a__1", `{"task_name":"axx-evals/a","task_id":{"path":"a"},"verifier_result":{"rewards":{"reward":1,"core":1}},`+run(100)+`}`)
+	// Worked 2000 s against a budget of 1800: a timeout, though the verifier passed it.
+	trial("a__2", `{"task_name":"axx-evals/a","task_id":{"path":"a"},"verifier_result":{"rewards":{"reward":1,"core":1}},`+run(2000)+`}`)
+	// Timed out by Harbor after 7200 s, 6000 of them waiting: within its budget, so not scored.
+	trial("a__3", `{"task_name":"axx-evals/a","task_id":{"path":"a"},"verifier_result":{"rewards":{"reward":0,"core":0}},"exception_info":{"exception_type":"AgentTimeoutError"},`+run(7200)+`}`)
+	rl := `{"trials":{"a__1":{"waitSeconds":60,"refused":2,"requests":20},"a__3":{"waitSeconds":6000,"refused":90,"requests":40}}}`
+	if err := os.WriteFile(filepath.Join(job, RateLimitFile), []byte(rl), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := FromHarborJob(job, map[string]float64{"a": 1800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := res["a"]
+	if a.Trials != 2 || a.Passed != 1 || a.Errors != 1 || a.Core != 0.5 {
+		t.Fatalf("scored: %+v", a)
+	}
+	if a.Unscored[waitedOut] != 1 {
+		t.Fatalf("unscored: %v", a.Unscored)
+	}
+	if a.AgentSeconds != 40+2000 || a.RateLimitWaitSeconds != 6060 || a.RateLimitRefused != 92 {
+		t.Fatalf("times: %+v", a)
 	}
 }

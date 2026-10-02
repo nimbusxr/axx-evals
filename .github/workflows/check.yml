@@ -93,6 +93,21 @@ jobs:
           df -h /
       - name: Build the images
         run: go run ./cmd/evals images
+      # A model run sends the agents' requests through the rate-limit proxy on the host
+      # (README.md, "Rate limits"): a container reaches it as the agents do, and through it
+      # OpenRouter's public list of models (no key, no cost).
+      - name: The agents reach the rate-limit proxy
+        run: |
+          gateway=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')
+          go build -o "$RUNNER_TEMP/evals" ./cmd/evals
+          "$RUNNER_TEMP/evals" proxy --addr "$gateway:8899" &
+          proxy=$!
+          for _ in $(seq 30); do curl -fsS -o /dev/null "http://$gateway:8899/api/v1/models" && break; sleep 1; done
+          code=$(docker run --rm --add-host host.docker.internal:host-gateway axx-evals-base:latest \
+            curl -sS -o /dev/null -w '%{http_code}' http://host.docker.internal:8899/api/v1/models)
+          kill -INT "$proxy"
+          echo "through the proxy: HTTP $code"
+          [[ "$code" == 200 ]]
       # none: every task with axx; plain: the versions without axx.
       - name: Every reference solution passes (oracle)
         run: go run ./cmd/evals run --agent oracle --conditions none,plain --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle

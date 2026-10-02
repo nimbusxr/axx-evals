@@ -93,10 +93,9 @@ go run ./cmd/evals run --agent oracle --conditions none --expect-reward 1
 go run ./cmd/evals run --agent nop --conditions none --expect-reward 0
 
 # Evaluate a model under every condition. The OpenRouter key comes from Infisical
-# (.infisical.json links this checkout to its project); it costs model credits. One agent
-# at a time: the account's rate limit (below) allows no more.
+# (.infisical.json links this checkout to its project); it costs model credits.
 infisical run -- go run ./cmd/evals run --agent opencode --model openrouter/openai/gpt-6-luna \
-  --ak version=1.18.34 --concurrency 1
+  --ak version=1.18.34
 ```
 
 `run` builds the images (with the axx release `images/base/axx.env` names: its version and the
@@ -115,11 +114,26 @@ no attempt gets a second chance (`results.NotScored`; `run` writes Harbor's retr
 the results leave it out, list it, and the run (and `report`) exits 1, since the scores then rest
 on fewer trials than asked for.
 
-**Rate limits.** Every agent sends its model about 14 requests a minute, 22 at its busiest.
-OpenRouter limits this account to 20 requests a minute per model for now ("new accounts are
-limited to 20 requests per minute for this model"), so only one agent can work at a time:
-`--concurrency 1` locally, `agents: 1` in CI. Ten at once (the first parallel run) had 80 of
-126 trials cut off. Raise them only with the limit. Useful flags:
+**Rate limits.** Every agent sends its model about 14 requests a minute, 22 at its busiest, and
+the model provider may allow fewer: OpenRouter limits new accounts to 20 requests a minute per
+model ("new accounts are limited to 20 requests per minute for this model", `limit_source:
+openrouter_new_account`), which cut off 80 of 126 trials of the first parallel run. No rate is
+set anywhere instead. For a model reached through OpenRouter, `run` serves a proxy on the host
+(`internal/ratelimit`; Linux: the Docker bridge's gateway, Docker Desktop: the loopback) and
+points OpenCode at it (Harbor's `opencode_config`: OpenRouter's `baseURL`, and a header with the
+agent container's hostname). The proxy passes requests straight through; when the provider
+answers 429, it holds every request until the limit resets (`X-RateLimit-Reset`, or
+`Retry-After`, or a doubling backoff) and sends the refused one again, so no agent is cut off,
+a run goes as fast as the limit allows, and at full speed when there is none. Refused requests
+are not billed.
+
+The waits are not the agent's: the proxy records each trial's (`<job>/rate-limit.json`), and the
+results leave them out. **Agent minutes** are the agent's run less its waits; the task's time
+budget (`[agent] timeout_sec`) holds the agent to that working time, so Harbor gets four times
+the budget in wall-clock time (`--agent-timeout-multiplier 4`), an agent that worked longer
+than its budget fails as if timed out, and one Harbor timed out only because of the waits is not
+scored (`RateLimitWaits`). The report says how long the limit held the agents in all.
+`go run ./cmd/evals proxy` serves the proxy on its own, to try it. Useful flags:
 `--tasks a,b`, `--conditions none,both`, `--attempts 3` (Harbor's `-k`), `--concurrency 4` (each
 trial runs its own databases, so budget about 4 GB of memory per concurrent trial),
 `--skip-images`, `--dry-run` (print the Harbor commands), `--include-pending` (run tasks whose
@@ -326,10 +340,10 @@ Two workflows:
   under every aid condition, and the oracle get 1 again under each on `rest-crud-happy-path` and
   `init-first-feature` (the shared starting project and a bare one); every answer in
   `testdata/negative/` must get 0. Nothing costs money.
-- **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks,
-  attempts and agents at once), from `main` only, never on pull requests. It runs OpenCode, one
-  job per condition on its own runner with one trial at a time, `agents` jobs at once (1 while
-  the account's rate limit allows one agent; see "Rate limits" above), then a
+- **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks
+  and attempts), from `main` only, never on pull requests. It runs OpenCode, one job per
+  condition, all at once on their own runners, two trials at a time in each, with the
+  rate-limit proxy pacing the model requests (see "Rate limits" above), then a
   report job merges them into `results/ci-<model>.json` and `.md`, adds the table to the run
   summary and applies the gate when the model has a baseline. The Harbor jobs (every trial's
   logs and trajectory) are kept as artifacts for 90 days.
