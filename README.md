@@ -126,7 +126,9 @@ Harbor task): `harbor run -p tasks/sql-manifest-import -a oracle`.
   `axx init` in a scratch project and keeps its `AGENTS.md`). Every initialized axx project has
   it, so every condition except the bare baseline includes it; set `agents_md` to change that.
 - **Skills**: `axx skills install` in the project, exactly as a user runs it (`.agents/skills`
-  for OpenCode, Codex, Cursor, Gemini CLI and Copilot).
+  for OpenCode, Codex, Cursor, Gemini CLI and Copilot). A repository not set up for axx yet
+  (`init-first-feature`) has no packs for the project's skills, so it gets them as a developer
+  has them before `axx init`: `axx skills install --scope user`, in `~/.agents/skills`.
 - **MCP**: `axx mcp`, registered through Harbor's `--mcp-config conditions/mcp.json` (a
   Claude-style `.mcp.json`), which Harbor turns into each agent's own MCP configuration (for
   OpenCode, the `mcp` section of its `opencode.json`).
@@ -277,11 +279,13 @@ Two workflows:
 - **`check`** runs on every pull request and push to `main`, with no secrets and no model: the Go
   tests (including the generated task files being up to date), actionlint and zizmor on the
   workflows, and the plumbing through Harbor. The oracle agent must get reward 1 on every task,
-  with axx and without (`none` and `plain`), the nop agent 0, and the oracle 1 again under every
-  aid condition on one task; every answer in `testdata/negative/` must get 0. Nothing costs money.
+  with axx and without (`none` and `plain`), the nop agent 0. Every task's environment must build
+  under every aid condition, and the oracle get 1 again under each on `rest-crud-happy-path` and
+  `init-first-feature` (the shared starting project and a bare one); every answer in
+  `testdata/negative/` must get 0. Nothing costs money.
 - **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks
   and attempts), from `main` only, never on pull requests. It runs OpenCode, one job per
-  condition one after another (one trial at a time, and no job near GitHub's 6 hours), then a
+  condition, all at once on their own runners, two trials at a time in each, then a
   report job merges them into `results/ci-<model>.json` and `.md`, adds the table to the run
   summary and applies the gate when the model has a baseline. The Harbor jobs (every trial's
   logs and trajectory) are kept as artifacts for 90 days.
