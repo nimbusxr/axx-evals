@@ -100,9 +100,19 @@ func TestFromHarborJob(t *testing.T) {
 	trial("a__2", `{"task_name":"axx-evals/a","task_id":{"path":"/x/a"},"verifier_result":{"rewards":{"reward":0}},"exception_info":null}`,
 		`{"mutantsTotal":2,"mutants":{"m1":{"killed":true},"m2":{"killed":false}}}`)
 	trial("b__1", `{"task_name":"axx-evals/b","task_id":{"path":"b"},"verifier_result":null,"exception_info":{"exception_type":"AgentTimeoutError"},"agent_result":{"cost_usd":0.5,"n_input_tokens":10,"n_output_tokens":2}}`, "")
+	// Cut off by the provider's rate limit or the infrastructure: not scored,
+	// though what it spent counts.
+	trial("a__3", `{"task_name":"axx-evals/a","task_id":{"path":"/x/a"},"verifier_result":{"rewards":{"reward":1}},"exception_info":{"exception_type":"ApiRateLimitError"},"agent_result":{"cost_usd":0.25}}`, "")
+	trial("c__1", `{"task_name":"axx-evals/c","task_id":{"path":"c"},"verifier_result":null,"exception_info":{"exception_type":"RuntimeError"}}`, "")
 	res, err := FromHarborJob(job)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if c := res["c"]; c == nil || c.Trials != 0 || c.Unscored["RuntimeError"] != 1 || cell(c) != "not scored (1)" {
+		t.Fatalf("c = %+v (%s)", c, cell(c))
+	}
+	if a := res["a"]; a.Unscored["ApiRateLimitError"] != 1 || a.CostUSD != 0.25 || cell(a) != "1/2 (1 not scored)" {
+		t.Fatalf("a = %+v (%s)", a, cell(a))
 	}
 	a, b := res["a"], res["b"]
 	if a == nil || a.Trials != 2 || a.Passed != 1 || a.Reward != 0.5 || a.MutantsCaught != 3 {
@@ -121,6 +131,7 @@ func TestUnexpected(t *testing.T) {
 			{ID: "b", Results: map[string]*Result{"none": {Reward: 0, Trials: 1}, "both": {Reward: 1, Trials: 1, Errors: 1}}},
 			{ID: "c", Results: map[string]*Result{"none": {Reward: 1, Core: 1, Trials: 1}}},
 			{ID: "f", Results: map[string]*Result{"none": {Reward: 1, Core: 1, Trials: 1}}},
+			{ID: "g", Results: map[string]*Result{"none": {Reward: 1, Core: 1, Trials: 1, Unscored: map[string]int{"ApiRateLimitError": 2}}, "both": {Reward: 1, Core: 1, Trials: 1}}},
 		},
 		Skipped: []Skipped{
 			{ID: "d", Reason: "requires the x pack(s)"},
@@ -134,8 +145,26 @@ func TestUnexpected(t *testing.T) {
 		"b (none): reward 0, want 1",
 		"b (both): 1 trial(s) ended in an exception",
 		"c (both): no trial ran",
+		"g (none): 2 trial(s) not scored",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("Unexpected(1) =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestUnscoredMakesTheRunIncomplete(t *testing.T) {
+	f := &File{
+		Agent: "opencode", Date: "2026-10-02", Axx: "0.1.8", Harbor: "0.23.0",
+		Conditions: []string{"none"},
+		Tasks: []Task{{ID: "a", Results: map[string]*Result{"none": {Reward: 1, Core: 1, Trials: 2, Passed: 2,
+			Unscored: map[string]int{"ApiRateLimitError": 1, "RuntimeError": 1}}}}},
+	}
+	got := f.Unscored()
+	want := "a (none): 2 trial(s) not scored: ApiRateLimitError ×1, RuntimeError ×1"
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("Unscored() = %q, want %q", got, want)
+	}
+	if md := f.Markdown(); !strings.Contains(md, "**Incomplete run:**") || !strings.Contains(md, "2/2 (2 not scored)") {
+		t.Errorf("markdown:\n%s", md)
 	}
 }

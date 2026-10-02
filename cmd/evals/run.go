@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -22,18 +23,22 @@ func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
 // cmdRun runs every task under each condition for one agent: it builds the
 // images, prepares one Harbor dataset per condition, runs `harbor run` for
 // each, and writes the result file and table.
-// infrastructureRetries has Harbor run a trial again when its containers
-// fail to build or start (a database that exits at startup, say), up to twice.
-// Harbor matches the exception's exact type name: a plain RuntimeError is
-// only ever infrastructure (docker compose, docker exec, the network plan),
-// while what an agent does ends in its own types (NonZeroAgentExitCodeError,
-// AgentTimeoutError), which are never retried, so no attempt gets a second
-// chance.
-var infrastructureRetries = []string{
-	"--max-retries", "2",
-	"--retry-include", "RuntimeError",
-	"--retry-include", "EnvironmentStartTimeoutError",
-	"--retry-include", "HealthcheckError",
+// harborRetries is the Harbor job configuration (`harbor run -c`) that runs a
+// trial again when something other than the agent ended it: its containers
+// failed to build or start, or the model provider's rate limit cut the agent
+// off (results.NotScored). Up to twice, after 60 s and then 120 s, so a
+// per-minute limit has passed. The agent's own failures (its process failing,
+// a timeout) are never retried: no attempt gets a second chance.
+func harborRetries() ([]byte, error) {
+	return json.MarshalIndent(map[string]any{
+		"retry": map[string]any{
+			"max_retries":        2,
+			"include_exceptions": results.NotScored,
+			"min_wait_sec":       60,
+			"wait_multiplier":    2,
+			"max_wait_sec":       300,
+		},
+	}, "", "  ")
 }
 
 func cmdRun(args []string) error {
@@ -89,6 +94,17 @@ func cmdRun(args []string) error {
 	if *jobsDir == "" {
 		*jobsDir = filepath.Join(dir, ".work", "jobs")
 	}
+	retries, err := harborRetries()
+	if err != nil {
+		return err
+	}
+	retryConfig := filepath.Join(dir, ".work", "datasets", runID+"-harbor.json")
+	if err := os.MkdirAll(filepath.Dir(retryConfig), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(retryConfig, retries, 0o644); err != nil {
+		return err
+	}
 	jobs := map[string]string{}
 	var skipped []results.Skipped
 	var failed []string // conditions whose harbor run failed
@@ -105,7 +121,7 @@ func cmdRun(args []string) error {
 			"run", "-p", dataset, "-a", *agent, "-o", *jobsDir, "--job-name", jobName,
 			"-n", strconv.Itoa(*concurrency), "-k", strconv.Itoa(*attempts), "-y",
 		}
-		hargs = append(hargs, infrastructureRetries...)
+		hargs = append(hargs, "-c", retryConfig)
 		if *model != "" {
 			hargs = append(hargs, "-m", *model)
 		}
@@ -146,6 +162,9 @@ func cmdRun(args []string) error {
 	}
 	if len(failed) > 0 {
 		return fmt.Errorf("harbor run failed for condition(s) %s; the results hold their finished trials", strings.Join(failed, ", "))
+	}
+	if bad := f.Unscored(); len(bad) > 0 {
+		return fmt.Errorf("the run is incomplete: some trials were not scored, even after Harbor's retries:\n  %s", strings.Join(bad, "\n  "))
 	}
 	if *expect >= 0 {
 		if bad := f.Unexpected(*expect); len(bad) > 0 {
