@@ -92,7 +92,7 @@ func TestPassesThrough(t *testing.T) {
 	if got.URL.Path != "/api/v1/chat/completions" || got.URL.RawQuery != "x=1" || got.Header.Get("Authorization") != "Bearer k" || got.Header.Get(TrialHeader) != "" {
 		t.Fatalf("forwarded %s?%s auth=%q tag=%q", got.URL.Path, got.URL.RawQuery, got.Header.Get("Authorization"), got.Header.Get(TrialHeader))
 	}
-	if wt := p.Waits()["abc123"]; wt != (Wait{Requests: 1}) {
+	if wt := p.Waits()["abc123"]; wt.Requests != 1 || wt.Seconds != 0 || wt.Refused != 0 || wt.Models["m"] != 1 {
 		t.Fatalf("waits = %+v", wt)
 	}
 }

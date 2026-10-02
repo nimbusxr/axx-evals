@@ -58,6 +58,9 @@ func cmdReport(args []string) error {
 	if err := writeResults(f, *out); err != nil {
 		return err
 	}
+	if other := f.OtherModels(); len(other) > 0 {
+		return fmt.Errorf("the agents called models besides %s:\n  %s", f.Model, strings.Join(other, "\n  "))
+	}
 	if bad := f.Unscored(); len(bad) > 0 {
 		return fmt.Errorf("the run is incomplete: some trials were not scored, even after Harbor's retries:\n  %s", strings.Join(bad, "\n  "))
 	}

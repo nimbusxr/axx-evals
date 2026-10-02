@@ -46,6 +46,7 @@ func cmdRun(args []string) error {
 	root := fs.String("root", "", "the evals directory")
 	agent := fs.String("agent", "", "Harbor agent: opencode, the one the evals compare (oracle and nop check the plumbing)")
 	model := fs.String("model", "", "model for the agent, e.g. openrouter/openai/gpt-6-luna")
+	smallModel := fs.String("small-model", "", "OpenCode's small model (session titles and other side tasks): default the model under test; auto leaves OpenCode's choice")
 	condList := fs.String("conditions", "none,skills,mcp,both,plain", "conditions from conditions.toml")
 	only := fs.String("tasks", "", "comma-separated task ids (default: all)")
 	attempts := fs.Int("attempts", 1, "trials per task and condition (harbor -k)")
@@ -144,8 +145,11 @@ func cmdRun(args []string) error {
 		for _, kv := range agentKwargs {
 			hargs = append(hargs, "--ak", kv)
 		}
+		if cfg := openCodeConfig(*agent, *model, *smallModel, mp); cfg != "" {
+			hargs = append(hargs, "--ak", "opencode_config="+cfg)
+		}
 		if mp != nil {
-			hargs = append(hargs, "--ak", "opencode_config="+mp.config, "--agent-timeout-multiplier", agentTimeoutMultiplier)
+			hargs = append(hargs, "--agent-timeout-multiplier", agentTimeoutMultiplier)
 		}
 		fmt.Printf("== condition %s: %s %s\n", n, *harbor, strings.Join(hargs, " "))
 		jobs[n] = filepath.Join(*jobsDir, jobName)
@@ -181,6 +185,9 @@ func cmdRun(args []string) error {
 	if len(failed) > 0 {
 		return fmt.Errorf("harbor run failed for condition(s) %s; the results hold their finished trials", strings.Join(failed, ", "))
 	}
+	if other := f.OtherModels(); len(other) > 0 {
+		return fmt.Errorf("the agents called models besides %s:\n  %s", f.Model, strings.Join(other, "\n  "))
+	}
 	if bad := f.Unscored(); len(bad) > 0 {
 		return fmt.Errorf("the run is incomplete: some trials were not scored, even after Harbor's retries:\n  %s", strings.Join(bad, "\n  "))
 	}
@@ -191,6 +198,35 @@ func cmdRun(args []string) error {
 		fmt.Printf("every trial got reward %g, as expected\n", *expect)
 	}
 	return nil
+}
+
+// openCodeConfig is the OpenCode configuration of a run (Harbor's --ak
+// opencode_config), "" when there is none. OpenCode's small model, which it
+// uses for side tasks like session titles, is the model under test unless
+// smallModel names another ("auto" leaves OpenCode's choice): by default
+// OpenCode picks a cheaper model of the same provider, and through
+// OpenRouter that is any model, so another model would make some of the
+// calls. The rate-limit proxy, when there is one, adds OpenRouter's settings.
+func openCodeConfig(agent, model, smallModel string, mp *modelProxy) string {
+	if agent != "opencode" || model == "" {
+		return ""
+	}
+	cfg := map[string]any{}
+	switch smallModel {
+	case "":
+		cfg["small_model"] = model
+	case "auto":
+	default:
+		cfg["small_model"] = smallModel
+	}
+	if mp != nil {
+		cfg["provider"] = mp.provider
+	}
+	if len(cfg) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(cfg)
+	return string(b)
 }
 
 func sanitize(s string) string {

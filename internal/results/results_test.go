@@ -214,3 +214,22 @@ func TestRateLimitWaitsAreLeftOut(t *testing.T) {
 		t.Fatalf("times: %+v", a)
 	}
 }
+
+// A run shows any model its agents called besides the one under test.
+func TestOtherModels(t *testing.T) {
+	f := &File{
+		Agent: "opencode", Model: "openrouter/openai/gpt-6-luna", Date: "2026-10-02", Axx: "0.1.8", Harbor: "0.23.0",
+		Conditions: []string{"none", "plain"},
+		Tasks: []Task{{ID: "a", Results: map[string]*Result{
+			"none":  {Trials: 1, Passed: 1, Reward: 1, Core: 1, Models: map[string]int{"openai/gpt-6-luna": 22, "google/gemini-3.8-flash": 1}},
+			"plain": {Trials: 1, Passed: 1, Reward: 1, Core: 1, Models: map[string]int{"openai/gpt-6-luna": 23}},
+		}}},
+	}
+	got := f.OtherModels()
+	if len(got) != 1 || got[0] != "a (none): google/gemini-3.8-flash ×1" {
+		t.Fatalf("OtherModels() = %q", got)
+	}
+	if md := f.Markdown(); !strings.Contains(md, "**Other models called:**") {
+		t.Errorf("markdown:\n%s", md)
+	}
+}
