@@ -102,7 +102,11 @@ infisical run -- go run ./cmd/evals run --agent opencode --model openrouter/open
 checksums of its Linux archives, from the release's `checksums.txt`), writes one Harbor dataset per condition
 under `.work/datasets/`, runs `harbor run` for each (jobs under `.work/jobs/`), and writes
 `results/<date>-<agent>.json` and `.md`. A condition whose Harbor run fails does not stop the
-others: the results keep its finished trials, and the run exits 1 afterwards. Useful flags:
+others: the results keep its finished trials, and the run exits 1 afterwards. A trial whose
+containers fail to build or start (a database that exits at startup, say) runs again, up to
+twice: Harbor retries the exceptions only infrastructure raises (`RuntimeError`,
+`EnvironmentStartTimeoutError`, `HealthcheckError`, matched by exact name), never an agent's
+(`NonZeroAgentExitCodeError`, `AgentTimeoutError`), so no attempt gets a second chance. Useful flags:
 `--tasks a,b`, `--conditions none,both`, `--attempts 3` (Harbor's `-k`), `--concurrency 4` (each
 trial runs its own databases, so budget about 4 GB of memory per concurrent trial),
 `--skip-images`, `--dry-run` (print the Harbor commands), `--include-pending` (run tasks whose

@@ -22,6 +22,20 @@ func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
 // cmdRun runs every task under each condition for one agent: it builds the
 // images, prepares one Harbor dataset per condition, runs `harbor run` for
 // each, and writes the result file and table.
+// infrastructureRetries has Harbor run a trial again when its containers
+// fail to build or start (a database that exits at startup, say), up to twice.
+// Harbor matches the exception's exact type name: a plain RuntimeError is
+// only ever infrastructure (docker compose, docker exec, the network plan),
+// while what an agent does ends in its own types (NonZeroAgentExitCodeError,
+// AgentTimeoutError), which are never retried, so no attempt gets a second
+// chance.
+var infrastructureRetries = []string{
+	"--max-retries", "2",
+	"--retry-include", "RuntimeError",
+	"--retry-include", "EnvironmentStartTimeoutError",
+	"--retry-include", "HealthcheckError",
+}
+
 func cmdRun(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	root := fs.String("root", "", "the evals directory")
@@ -91,6 +105,7 @@ func cmdRun(args []string) error {
 			"run", "-p", dataset, "-a", *agent, "-o", *jobsDir, "--job-name", jobName,
 			"-n", strconv.Itoa(*concurrency), "-k", strconv.Itoa(*attempts), "-y",
 		}
+		hargs = append(hargs, infrastructureRetries...)
 		if *model != "" {
 			hargs = append(hargs, "-m", *model)
 		}
