@@ -38,12 +38,11 @@ services:
       timeout: 2s
       retries: 60
 
+  # MongoDB with the parcels user built in (images/mongo/Dockerfile says why).
   mongo:
-    image: mongo:7
+    image: axx-evals-mongo:latest
+    build: ../images/mongo
     ports: ["${EVALS_MONGO_PORT:-27017}:27017"]
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: parcels
-      MONGO_INITDB_ROOT_PASSWORD: parcels
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 2s

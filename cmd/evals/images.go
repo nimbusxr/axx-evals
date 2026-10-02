@@ -20,6 +20,7 @@ const (
 	baseImage     = "axx-evals-base:latest"
 	verifierImage = "axx-evals-verifier:latest"
 	addressImage  = "axx-evals-address-service:latest"
+	mongoImage    = "axx-evals-mongo:latest"
 )
 
 func cmdImages(args []string) error {
@@ -56,15 +57,20 @@ func buildImages(dir string, noCache bool) error {
 			return fmt.Errorf("building %s: %w", target.tag, err)
 		}
 	}
-	args := []string{"build", "-f", filepath.Join(dir, "images", "address-service", "Dockerfile"), "-t", addressImage}
-	if noCache {
-		args = append(args, "--no-cache")
+	for _, img := range []struct{ tag, dockerfile, context string }{
+		{addressImage, filepath.Join(dir, "images", "address-service", "Dockerfile"), filepath.Join(dir, "app", "wiremock")},
+		{mongoImage, filepath.Join(dir, "images", "mongo", "Dockerfile"), filepath.Join(dir, "images", "mongo")},
+	} {
+		args := []string{"build", "-f", img.dockerfile, "-t", img.tag}
+		if noCache {
+			args = append(args, "--no-cache")
+		}
+		args = append(args, img.context)
+		if err := runStreaming("docker", args...); err != nil {
+			return fmt.Errorf("building %s: %w", img.tag, err)
+		}
 	}
-	args = append(args, filepath.Join(dir, "app", "wiremock"))
-	if err := runStreaming("docker", args...); err != nil {
-		return fmt.Errorf("building %s: %w", addressImage, err)
-	}
-	fmt.Printf("built %s, %s and %s (%s)\n", baseImage, verifierImage, addressImage, strings.Join(release[:1], ""))
+	fmt.Printf("built %s, %s, %s and %s (%s)\n", baseImage, verifierImage, addressImage, mongoImage, strings.Join(release[:1], ""))
 	return nil
 }
 

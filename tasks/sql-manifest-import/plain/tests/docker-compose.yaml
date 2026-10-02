@@ -21,10 +21,7 @@ services:
       timeout: 2s
       retries: 90
   mongo:
-    image: mongo:7
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: parcels
-      MONGO_INITDB_ROOT_PASSWORD: parcels
+    image: axx-evals-mongo:latest
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 2s
