@@ -85,7 +85,7 @@ type eventPublisher struct {
 	schemaID int32
 }
 
-func newEventPublisher(ctx context.Context, brokers []string, registry, topic string, log *slog.Logger) (*eventPublisher, error) {
+func newEventPublisher(ctx context.Context, brokers []string, registry, topic string, gzipTopic bool, log *slog.Logger) (*eventPublisher, error) {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers...),
 		kgo.AllowAutoTopicCreation(),
@@ -98,6 +98,12 @@ func newEventPublisher(ctx context.Context, brokers []string, registry, topic st
 	if err := retry(ctx, log, "kafka", func() error { return client.Ping(ctx) }); err != nil {
 		client.Close()
 		return nil, err
+	}
+	if gzipTopic {
+		if err := retry(ctx, log, "kafka topic", func() error { return gzipCompressedTopic(ctx, client, topic) }); err != nil {
+			client.Close()
+			return nil, err
+		}
 	}
 	p := &eventPublisher{client: client, registry: registry, topic: topic, log: log}
 	if err := retry(ctx, log, "schema registry", func() error { _, err := p.id(ctx); return err }); err != nil {
@@ -156,6 +162,32 @@ func (p *eventPublisher) publish(ctx context.Context, e parcelRegistered) error 
 		Headers: []kgo.RecordHeader{{Key: "X-Event-Type", Value: []byte("ParcelRegistered")}},
 	}
 	return p.client.ProduceSync(pctx, rec).FirstErr()
+}
+
+// gzipCompressedTopic is the events-topic-gzip variant: the topic is
+// configured with compression.type=gzip, as operators often set, so the broker
+// stores every event in a gzip-compressed batch whatever the producer sent.
+// Consumers must decompress; the docs leave how events are stored open.
+func gzipCompressedTopic(ctx context.Context, client *kgo.Client, topic string) error {
+	adm := kadm.NewClient(client)
+	gzip := map[string]*string{"compression.type": kadm.StringPtr("gzip")}
+	res, err := adm.CreateTopic(ctx, -1, -1, gzip, topic)
+	if err == nil {
+		err = res.Err
+	}
+	if !errors.Is(err, kerr.TopicAlreadyExists) {
+		return err
+	}
+	alter, err := adm.AlterTopicConfigs(ctx, []kadm.AlterConfig{{Op: kadm.SetConfig, Name: "compression.type", Value: kadm.StringPtr("gzip")}}, topic)
+	if err != nil {
+		return err
+	}
+	for _, r := range alter {
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+	return nil
 }
 
 // resetEvents deletes the events topic (it is recreated on the next publish)

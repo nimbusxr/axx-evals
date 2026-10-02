@@ -37,6 +37,7 @@ type service struct {
 	events   *eventPublisher
 	labels   labeler
 	mut      mutant.Set
+	variants mutant.Set
 	log      *slog.Logger
 }
 
@@ -143,7 +144,11 @@ func (s *service) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/parcels/{reference}", s.remove)
 	mux.HandleFunc("GET /api/parcels/{reference}/tracking", s.trackingView)
 	mux.HandleFunc("GET /api/parcels/{reference}/label", s.label)
-	return s.logRequests(mux)
+	var h http.Handler = mux
+	if s.variants.On("json-properties-reordered") {
+		h = reorderJSON(h)
+	}
+	return s.logRequests(h)
 }
 
 func (s *service) logRequests(h http.Handler) http.Handler {

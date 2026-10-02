@@ -126,6 +126,11 @@ func serve(ctx context.Context, cfg config, log *slog.Logger) error {
 	}
 	// Keep the variable out of anything the service might start.
 	_ = os.Unsetenv(mutant.EnvVar)
+	vars, unknown := mutant.ParseVariants(os.Getenv(mutant.VariantEnvVar))
+	if len(unknown) > 0 {
+		return fmt.Errorf("unknown value(s) in %s: %s", mutant.VariantEnvVar, strings.Join(unknown, ", "))
+	}
+	_ = os.Unsetenv(mutant.VariantEnvVar)
 
 	cctx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)
 	defer cancel()
@@ -141,7 +146,7 @@ func serve(ctx context.Context, cfg config, log *slog.Logger) error {
 	defer tracking.Close(context.WithoutCancel(ctx))
 	var events *eventPublisher
 	if len(cfg.KafkaBrokers) > 0 {
-		events, err = newEventPublisher(cctx, cfg.KafkaBrokers, cfg.RegistryURL, cfg.EventsTopic, log)
+		events, err = newEventPublisher(cctx, cfg.KafkaBrokers, cfg.RegistryURL, cfg.EventsTopic, vars.On("events-topic-gzip"), log)
 		if err != nil {
 			return err
 		}
@@ -155,10 +160,11 @@ func serve(ctx context.Context, cfg config, log *slog.Logger) error {
 		events:   events,
 		labels:   labeler{secret: []byte(cfg.LabelSecret)},
 		mut:      muts,
+		variants: vars,
 		log:      log,
 	}
 	go svc.runImporter(ctx, cfg.PollInterval)
-	go tracking.runProjector(ctx, cfg.PollInterval, muts)
+	go tracking.runProjector(ctx, cfg.PollInterval, muts, vars)
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: svc.routes(), ReadHeaderTimeout: 10 * time.Second}
 	errc := make(chan error, 1)

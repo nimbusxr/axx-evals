@@ -317,7 +317,7 @@ func (f *File) Markdown() string {
 		fmt.Fprintf(&b, "axx %s, Harbor %s. A cell is the share of trials whose verifier gave reward 1; `err` counts trials that ended in an exception.\n\n", orDash(f.Axx), orDash(f.Harbor))
 	}
 	if len(f.CoreScores) > 0 {
-		b.WriteString("The **core score** holds every condition to the same checks: the tests pass against the correct service and fail against every planted bug, with no cheating. The **score** adds what only an axx suite has (`axx validate`, the features' readability, `axx lint` where the task asks); without axx (`plain`) the two are the same.\n\n")
+		b.WriteString("The **core score** holds every condition to the same checks: the tests pass against the correct service, twice, and against its correct variants (the same service as it may differ within its contract), and fail against every planted bug, with no cheating. The **score** adds what only an axx suite has (`axx validate`, the features' readability, `axx lint` where the task asks); without axx (`plain`) the two are the same.\n\n")
 	}
 	b.WriteString("| Task | Category |")
 	for _, c := range f.Conditions {

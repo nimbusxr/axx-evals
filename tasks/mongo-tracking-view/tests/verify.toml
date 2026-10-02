@@ -2,3 +2,4 @@
 allowed = ["features/**", "seeds/**"]
 min_scenarios = 2
 mutants = ["tracking-status-from-first-scan", "tracking-counts-duplicate-scans"]
+variants = ["tracking-takes-seconds", "json-properties-reordered"]

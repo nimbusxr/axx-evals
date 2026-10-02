@@ -2,3 +2,4 @@
 allowed = ["features/**", "seeds/**"]
 min_scenarios = 2
 mutants = ["import-drops-postcode", "import-leaves-line-pending", "import-wrong-source", "import-accepts-overweight"]
+variants = ["import-takes-seconds", "json-properties-reordered"]

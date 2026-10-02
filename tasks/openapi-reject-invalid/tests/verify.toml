@@ -2,3 +2,4 @@
 allowed = ["features/**", "seeds/**"]
 min_scenarios = 2
 mutants = ["no-weight-limit", "no-service-level-check"]
+variants = ["json-properties-reordered"]

@@ -46,10 +46,22 @@ func (s *service) runImporter(ctx context.Context, every time.Duration) {
 	}
 }
 
+// importDelay is how old a line must be before the importer takes it: none,
+// or 3 seconds with the import-takes-seconds variant (the docs promise an
+// import within a few seconds).
+func (s *service) importDelay() float64 {
+	if s.variants.On("import-takes-seconds") {
+		return 3
+	}
+	return 0
+}
+
 func (s *service) importPending(ctx context.Context, handled *sync.Map) error {
 	rows, err := s.store.pool.Query(ctx, `
 SELECT id, manifest_id, reference, sender, weight_grams, service_level, recipient
-FROM parcels.manifest_lines WHERE status = 'PENDING' ORDER BY received_at, id LIMIT 100`)
+FROM parcels.manifest_lines
+WHERE status = 'PENDING' AND received_at <= now() - make_interval(secs => $1)
+ORDER BY received_at, id LIMIT 100`, s.importDelay())
 	if err != nil {
 		return err
 	}

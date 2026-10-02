@@ -23,10 +23,12 @@
 // the agent's command (./acceptance-tests.sh) stands in for axx run: exit 0
 // passes, any other exit fails.
 //
-// The app runs as the "parcels" user with EVALS_MUTANT in its own
-// environment only; axx runs as the
-// "tester" user, which can neither read that environment nor the verifier's
-// files.
+// The app runs as the "parcels" user with EVALS_MUTANT and EVALS_VARIANT in
+// its own environment only; axx runs as the "tester" user, which can neither
+// read that environment nor the verifier's files: the logs of each run are
+// kept in a directory only root can read until the end, then copied to
+// /logs/verifier with the report, and the files the tests can see are
+// numbered, never named after the mutant or variant.
 package main
 
 import (
@@ -75,6 +77,8 @@ type Report struct {
 	Static  *verify.Static   `json:"static,omitempty"`
 	Runs    []*RunResult     `json:"runs,omitempty"`
 	Mutants map[string]*Kill `json:"mutants,omitempty"`
+	// Variants: whether the tests passed against each correct variant.
+	Variants map[string]bool `json:"variants,omitempty"`
 	// MutantsTotal is the number of mutants the task targets.
 	MutantsTotal int    `json:"mutantsTotal"`
 	Duration     string `json:"duration"`
@@ -99,6 +103,7 @@ type Kill struct {
 type RunResult struct {
 	Label     string          `json:"label"`
 	Mutant    string          `json:"mutant,omitempty"`
+	Variant   string          `json:"variant,omitempty"`
 	ExitCode  int             `json:"exitCode"`
 	Counts    map[string]int  `json:"counts"`
 	Failures  []runFailure    `json:"failures,omitempty"`
@@ -125,6 +130,11 @@ type verifier struct {
 	env    []string
 	// done: every check ran (the mutants included); a reward needs it.
 	done bool
+	// logs holds each run's logs until finish copies them to opt.out: only
+	// root can read it, so the tests cannot tell which app is running.
+	logs string
+	// runs numbers the axx runs, for the report files the tester writes.
+	runs int
 }
 
 type account struct {
@@ -146,8 +156,14 @@ func main() {
 	flag.Parse()
 
 	start := time.Now()
-	v := &verifier{opt: o, report: &Report{Mutants: map[string]*Kill{}}}
-	err := v.run(context.Background())
+	v := &verifier{opt: o, report: &Report{Mutants: map[string]*Kill{}, Variants: map[string]bool{}}}
+	logs, err := os.MkdirTemp("", "evals-verify-") // mode 0700, root's
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "cannot create the log directory:", err)
+		os.Exit(1)
+	}
+	v.logs = logs
+	err = v.run(context.Background())
 	if err != nil {
 		v.check("verifier", false, err.Error())
 		v.done = false
@@ -258,9 +274,18 @@ func (v *verifier) run(ctx context.Context) error {
 		return nil
 	}
 
-	// 4. Mutants.
+	// 4. The correct variants: the suite must pass on each, as on the
+	// correct app. A failure fails the core reward; the mutants still run.
+	for _, n := range v.spec.Variants {
+		res, err := v.axxRun(ctx, "variant-"+n, "", n)
+		ok := err == nil && suitePassed(res)
+		v.report.Variants[n] = ok
+		v.check(variantCheck(n), ok, errOr(err, describe(res)))
+	}
+
+	// 5. Mutants.
 	for _, m := range v.spec.Mutants {
-		res, err := v.axxRun(ctx, "mutant-"+m, m)
+		res, err := v.axxRun(ctx, "mutant-"+m, m, "")
 		kill := &Kill{}
 		v.report.Mutants[m] = kill
 		switch {
@@ -372,21 +397,15 @@ func (v *verifier) correct(ctx context.Context) bool {
 			name += ", started by axx from axx.yaml"
 			res, err = v.axxRunWithApps(ctx, label)
 		} else {
-			res, err = v.axxRun(ctx, label, "")
+			res, err = v.axxRun(ctx, label, "", "")
 		}
 		if err != nil {
 			return v.check(name, false, err.Error())
 		}
-		passed := res.Counts["passed"]
-		bad := res.ExitCode != 0 || res.Counts["failed"] > 0 || passed == 0
-		for _, k := range []string{"skipped", "undefined", "pending", "ambiguous"} {
-			if res.Counts[k] > 0 {
-				bad = true
-			}
-		}
-		if !v.check(name, !bad, describe(res)) {
+		if !v.check(name, suitePassed(res), describe(res)) {
 			return false
 		}
+		passed := res.Counts["passed"]
 		if i > 1 {
 			continue
 		}
@@ -406,19 +425,39 @@ func (v *verifier) correct(ctx context.Context) bool {
 	return true
 }
 
-// axxRun resets the data, starts the app (as a mutant when m is set), runs
-// the suite and stops the app.
-func (v *verifier) axxRun(ctx context.Context, label, m string) (*RunResult, error) {
+// suitePassed: an axx run on a correct app passed every scenario, and ran at
+// least one.
+func suitePassed(res *RunResult) bool {
+	if res == nil || res.ExitCode != 0 || res.Counts["failed"] > 0 || res.Counts["passed"] == 0 {
+		return false
+	}
+	for _, k := range []string{"skipped", "undefined", "pending", "ambiguous"} {
+		if res.Counts[k] > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// variantCheck names the check of a correct variant.
+func variantCheck(n string) string {
+	return "passes against the correct variant " + n + " (" + mutant.VariantChange(n) + ")"
+}
+
+// axxRun resets the data, starts the app (as a mutant when m is set, as a
+// correct variant when variant is), runs the suite and stops the app.
+func (v *verifier) axxRun(ctx context.Context, label, m, variant string) (*RunResult, error) {
 	if err := v.reset(ctx); err != nil {
 		return nil, err
 	}
-	app, err := v.startApp(ctx, label, m)
+	app, err := v.startApp(ctx, label, m, variant)
 	if err != nil {
 		return nil, err
 	}
 	defer v.stopApp(app)
 	res, err := v.axxOnce(ctx, label, m, false)
 	if res != nil {
+		res.Variant = variant
 		v.report.Runs = append(v.report.Runs, res)
 	}
 	return res, err
@@ -439,7 +478,8 @@ func (v *verifier) axxRunWithApps(ctx context.Context, label string) (*RunResult
 
 func (v *verifier) axxOnce(ctx context.Context, label, m string, startApps bool) (*RunResult, error) {
 	start := time.Now()
-	cuke := filepath.Join("/tmp/evals", label+".cucumber.json")
+	v.runs++
+	cuke := filepath.Join("/tmp/evals", fmt.Sprintf("run-%d.cucumber.json", v.runs))
 	_ = os.Remove(cuke)
 	args := []string{
 		"run", "--json", "--workers", strconv.Itoa(v.spec.Run.Workers),
@@ -452,7 +492,7 @@ func (v *verifier) axxOnce(ctx context.Context, label, m string, startApps bool)
 		args = append(args, "--tags", "not @evals-never-matches")
 	}
 	out, code, err := v.asTester(ctx, v.spec.Run.Timeout.Duration, v.opt.workspace, v.opt.axx, args...)
-	_ = os.WriteFile(filepath.Join(v.opt.out, "run-"+label+".json"), out, 0o644)
+	_ = os.WriteFile(filepath.Join(v.logs, "run-"+label+".json"), out, 0o644)
 	res := &RunResult{Label: label, Mutant: m, ExitCode: code, Counts: map[string]int{}, Seconds: time.Since(start).Seconds()}
 	if err != nil {
 		res.Error = err.Error()
@@ -594,7 +634,7 @@ func (v *verifier) reset(ctx context.Context) error {
 	return nil
 }
 
-func (v *verifier) startApp(ctx context.Context, label, m string) (*appProc, error) {
+func (v *verifier) startApp(ctx context.Context, label, m, variant string) (*appProc, error) {
 	for i := 0; ; i++ {
 		conn, err := dial(ctx, hostPort(v.opt.appURL), time.Second)
 		if err != nil {
@@ -606,12 +646,12 @@ func (v *verifier) startApp(ctx context.Context, label, m string) (*appProc, err
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	logf, err := os.Create(filepath.Join(v.opt.out, "app-"+label+".log"))
+	logf, err := os.Create(filepath.Join(v.logs, "app-"+label+".log"))
 	if err != nil {
 		return nil, err
 	}
 	cmd := exec.CommandContext(context.WithoutCancel(ctx), v.opt.app)
-	cmd.Env = append(append([]string{}, v.env...), mutant.EnvVar+"="+m, "HOME="+v.appAcc.home)
+	cmd.Env = append(append([]string{}, v.env...), mutant.EnvVar+"="+m, mutant.VariantEnvVar+"="+variant, "HOME="+v.appAcc.home)
 	cmd.Dir = v.appAcc.home
 	cmd.Stdout, cmd.Stderr = logf, logf
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Credential: &syscall.Credential{Uid: v.appAcc.uid, Gid: v.appAcc.gid}}
@@ -820,9 +860,17 @@ func (v *verifier) finish() {
 		}
 	}
 	r.MutantsTotal = len(v.specMutants())
-	r.Summary = fmt.Sprintf("reward %.0f (core %.0f): %d check(s) failed, %d/%d mutants caught", r.Reward, r.Core, failed, killed, r.MutantsTotal)
+	variants := 0
+	for _, ok := range r.Variants {
+		if ok {
+			variants++
+		}
+	}
+	r.Summary = fmt.Sprintf("reward %.0f (core %.0f): %d check(s) failed, %d/%d correct variants passed, %d/%d mutants caught",
+		r.Reward, r.Core, failed, variants, len(r.Variants), killed, r.MutantsTotal)
 	fmt.Println(r.Summary)
 	_ = os.MkdirAll(v.opt.out, 0o755)
+	copyLogs(v.logs, v.opt.out)
 	b, _ := json.MarshalIndent(r, "", "  ")
 	_ = os.WriteFile(filepath.Join(v.opt.out, "verify.json"), b, 0o644)
 	// The two rewards: Harbor summarizes every key. Details are in verify.json.
@@ -833,6 +881,19 @@ func (v *verifier) finish() {
 		os.Exit(1)
 	}
 	_ = os.WriteFile(filepath.Join(v.opt.out, "reward.txt"), []byte(strconv.FormatFloat(r.Reward, 'f', -1, 64)+"\n"), 0o644)
+}
+
+// copyLogs copies the runs' logs to the output directory, for the report.
+func copyLogs(from, to string) {
+	if from == "" {
+		return
+	}
+	entries, _ := os.ReadDir(from)
+	for _, e := range entries {
+		if b, err := os.ReadFile(filepath.Join(from, e.Name())); err == nil {
+			_ = os.WriteFile(filepath.Join(to, e.Name()), b, 0o644)
+		}
+	}
 }
 
 func (v *verifier) specMutants() []string {

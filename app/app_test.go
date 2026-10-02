@@ -5,6 +5,9 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,5 +93,50 @@ func TestMutantParse(t *testing.T) {
 	s, unknown := mutant.Parse("no-weight-limit, bogus,")
 	if !s.On("no-weight-limit") || len(unknown) != 1 || unknown[0] != "bogus" {
 		t.Fatalf("parse = %v %v", s, unknown)
+	}
+}
+
+func TestVariantsParse(t *testing.T) {
+	s, unknown := mutant.ParseVariants("events-topic-gzip, bogus")
+	if !s.On("events-topic-gzip") || len(unknown) != 1 || unknown[0] != "bogus" {
+		t.Fatalf("got %v, unknown %v", s, unknown)
+	}
+	if s, _ := mutant.ParseVariants("no-weight-limit"); s.On("no-weight-limit") {
+		t.Fatal("a mutant parsed as a variant")
+	}
+}
+
+// The json-properties-reordered variant: the same JSON, properties in reverse
+// alphabetical order at every level, numbers kept exactly.
+func TestReorderedJSON(t *testing.T) {
+	got, err := reorderedJSON([]byte(`{"reference":"PX-1","weightGrams":1840,"recipient":{"name":"Ada","country":"DE"},"labels":[{"b":1,"a":12345678901234567890}],"zone":null}` + "\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"zone":null,"weightGrams":1840,"reference":"PX-1","recipient":{"name":"Ada","country":"DE"},"labels":[{"b":1,"a":12345678901234567890}]}` + "\n"
+	if string(got) != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestReorderJSONLeavesOtherBodiesAlone(t *testing.T) {
+	h := reorderJSON(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/yaml" {
+			w.Header().Set("Content-Type", "application/yaml")
+			_, _ = w.Write([]byte("b: 1\na: 2\n"))
+			return
+		}
+		problem(w, r, http.StatusBadRequest, "weightGrams: must be at most 30000")
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/yaml", nil))
+	if rec.Body.String() != "b: 1\na: 2\n" {
+		t.Fatalf("yaml changed: %q", rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/parcels", nil))
+	if rec.Code != http.StatusBadRequest || rec.Header().Get("Content-Type") != "application/problem+json" ||
+		!strings.HasPrefix(rec.Body.String(), `{"type":"about:blank","title":"Bad Request","status":400,"instance"`) {
+		t.Fatalf("problem: %d %s %s", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
 	}
 }

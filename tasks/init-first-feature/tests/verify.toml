@@ -7,3 +7,4 @@ config_keys = ["*"]
 start_apps = true
 min_scenarios = 2
 mutants = ["wrong-status-on-duplicate", "wrong-status-on-create"]
+variants = ["json-properties-reordered"]

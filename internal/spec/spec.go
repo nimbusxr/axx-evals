@@ -194,6 +194,10 @@ type Verify struct {
 	StartApps bool `toml:"start_apps"`
 	// Mutants are the deliberate bugs the features must catch.
 	Mutants []string `toml:"mutants"`
+	// Variants are correct builds of the app that differ within the contract
+	// (internal/mutant.Variants); the tests must pass against each, as against
+	// the correct app.
+	Variants []string `toml:"variants"`
 	// Lint is the test-data isolation check.
 	Lint Lint `toml:"lint"`
 	// Run tunes the axx runs.
@@ -213,9 +217,9 @@ type Run struct {
 	Workers int `toml:"workers"`
 	// Timeout per axx run (default 5m).
 	Timeout Duration `toml:"timeout"`
-	// Repeat runs the suite on the correct app this many times (default 1),
+	// Repeat runs the suite on the correct app this many times (default 2),
 	// each on freshly reset data and in a new random order; every run must
-	// pass. Scenarios that share data fail some of these runs.
+	// pass. Flaky tests and scenarios that share data fail some of these runs.
 	Repeat int `toml:"repeat"`
 }
 
@@ -268,7 +272,7 @@ func LoadVerify(path string) (*Verify, error) {
 		v.Run.Timeout.Duration = 5 * time.Minute
 	}
 	if v.Run.Repeat <= 0 {
-		v.Run.Repeat = 1
+		v.Run.Repeat = 2
 	}
 	if v.Mode == "" {
 		v.Mode = "axx"
@@ -312,6 +316,11 @@ func (v *Verify) check() error {
 			errs = append(errs, fmt.Errorf("unknown mutant %q", m))
 		}
 		seen[m] = true
+	}
+	for _, n := range v.Variants {
+		if !mutant.KnownVariant(n) {
+			errs = append(errs, fmt.Errorf("unknown variant %q", n))
+		}
 	}
 	for _, r := range v.MustNotContain {
 		if r.Path == "" || r.Pattern == "" {

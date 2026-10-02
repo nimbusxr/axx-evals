@@ -1,10 +1,12 @@
 // Package mutant lists the deliberate bugs the evals app (the parcels service)
-// can be started with. A task's verifier runs the agent's features against the
-// correct app and against each mutant the task targets: a good acceptance test
-// passes on the first and fails on every targeted mutant.
+// can be started with, and its correct variants. A task's verifier runs the
+// agent's tests against the correct app, against each correct variant and
+// against each mutant the task targets: a good acceptance test passes on the
+// first two and fails on every targeted mutant.
 //
-// The app reads the active mutants from EVALS_MUTANT (comma-separated). The
-// variable is set only by the verifier, never in the agent's environment.
+// The app reads the active mutants from EVALS_MUTANT and the active variants
+// from EVALS_VARIANT (both comma-separated). The variables are set only by the
+// verifier, never in the agent's environment.
 package mutant
 
 import (
@@ -46,6 +48,49 @@ var All = []Mutant{
 	{"event-weight-in-kilograms", "events", "the event's weightGrams carries kilograms"},
 }
 
+// VariantEnvVar selects the active correct variants.
+const VariantEnvVar = "EVALS_VARIANT"
+
+// Variant is a correct build of the app that differs from the default the way
+// real services do, within what the task's docs and contract promise. Tests
+// that depend on what the contract leaves open (the order of JSON properties,
+// how fast a background job is, how the broker stores events) fail on one.
+type Variant struct {
+	Name string
+	// Area is the part of the service it changes (for docs and reports).
+	Area string
+	// Change describes the difference, in product terms.
+	Change string
+}
+
+// Variants is every correct variant the app implements.
+var Variants = []Variant{
+	{"json-properties-reordered", "rest", "JSON response bodies list their properties in another order"},
+	{"import-takes-seconds", "import", "manifest lines are imported 3 seconds after they arrive instead of at the next poll (the docs promise within a few seconds)"},
+	{"tracking-takes-seconds", "tracking", "the tracking view is updated 3 seconds after a parcel's latest scan arrives (the docs promise within a few seconds)"},
+	{"events-topic-gzip", "events", "the events topic is configured with compression.type=gzip, so the broker stores every event in a gzip-compressed batch"},
+}
+
+// KnownVariant reports whether name is a correct variant.
+func KnownVariant(name string) bool {
+	for _, v := range Variants {
+		if v.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// VariantChange describes a variant (empty for an unknown one).
+func VariantChange(name string) string {
+	for _, v := range Variants {
+		if v.Name == name {
+			return v.Change
+		}
+	}
+	return ""
+}
+
 // Known reports whether name is a mutant.
 func Known(name string) bool {
 	for _, m := range All {
@@ -66,12 +111,17 @@ func Names() []string {
 	return out
 }
 
-// Set is the set of active mutants.
+// Set is the set of active mutants (or variants).
 type Set map[string]bool
 
 // Parse reads a comma-separated EVALS_MUTANT value. Unknown names are
 // returned separately so the app can refuse to start with a typo.
-func Parse(v string) (Set, []string) {
+func Parse(v string) (Set, []string) { return parse(v, Known) }
+
+// ParseVariants reads a comma-separated EVALS_VARIANT value, as Parse does.
+func ParseVariants(v string) (Set, []string) { return parse(v, KnownVariant) }
+
+func parse(v string, known func(string) bool) (Set, []string) {
 	s := Set{}
 	var unknown []string
 	for _, n := range strings.Split(v, ",") {
@@ -79,7 +129,7 @@ func Parse(v string) (Set, []string) {
 		if n == "" {
 			continue
 		}
-		if !Known(n) {
+		if !known(n) {
 			unknown = append(unknown, n)
 			continue
 		}
@@ -88,5 +138,5 @@ func Parse(v string) (Set, []string) {
 	return s, unknown
 }
 
-// On reports whether the named mutant is active.
+// On reports whether the named mutant (or variant) is active.
 func (s Set) On(name string) bool { return s[name] }
