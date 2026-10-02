@@ -55,7 +55,13 @@ func cmdReport(args []string) error {
 	if *out == "" {
 		*out = filepath.Join(dir, "results", *date+"-"+sanitize(*agent))
 	}
-	return writeResults(f, *out)
+	if err := writeResults(f, *out); err != nil {
+		return err
+	}
+	if bad := f.Unscored(); len(bad) > 0 {
+		return fmt.Errorf("the run is incomplete: some trials were not scored, even after Harbor's retries:\n  %s", strings.Join(bad, "\n  "))
+	}
+	return nil
 }
 
 // datasetSkipped reads the skipped tasks recorded next to a job's dataset,

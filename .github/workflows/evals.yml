@@ -5,8 +5,10 @@ name: evals
 # so they only run on demand, from main: the OPENROUTER_API_KEY secret lives in the
 # evals environment, which only main can use (Infisical syncs it there).
 #
-# One job per condition, all at once, each on its own runner with two trials at a time;
-# the report job then merges them. The model spend is the same as one after another.
+# One job per condition, each on its own runner with one trial at a time, and `agents`
+# of them at once: every agent sends its model about 14 requests a minute (22 at its
+# busiest), and OpenRouter limits this account to 20 a minute per model for now, so
+# agents at once is 1 until that limit rises. The report job then merges the jobs.
 on:
   workflow_dispatch:
     inputs:
@@ -32,6 +34,10 @@ on:
         description: Trials per task and condition
         type: string
         default: "1"
+      agents:
+        description: Agents at once (1 to 5, one per condition). Each sends about 14 model requests a minute; OpenRouter allows this account 20 a minute per model for now, so 1
+        type: number
+        default: 1
       gate:
         description: Fail when a condition scores more than 10 points below the model's baseline (results/baseline-<model>.json)
         type: boolean
@@ -76,6 +82,7 @@ jobs:
     environment: evals
     timeout-minutes: 350
     strategy:
+      max-parallel: ${{ inputs.agents }}
       fail-fast: false
       matrix:
         condition: ${{ fromJSON(needs.plan.outputs.conditions) }}
@@ -115,7 +122,7 @@ jobs:
             exit 1
           fi
           args=(--agent "$AGENT" --model "$MODEL" --ak "version=$OPENCODE_VERSION" --conditions "$CONDITION"
-            --attempts "$ATTEMPTS" --concurrency 2 --skip-images --jobs-dir .work/jobs --out "results/ci-$CONDITION")
+            --attempts "$ATTEMPTS" --concurrency 1 --skip-images --jobs-dir .work/jobs --out "results/ci-$CONDITION")
           if [[ -n "$TASKS" ]]; then args+=(--tasks "$TASKS"); fi
           go run ./cmd/evals run "${args[@]}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -167,8 +174,12 @@ jobs:
               if [[ -d "$job" ]]; then args+=(--job "$c=$job"); fi
             done
           done
-          go run ./cmd/evals report "${args[@]}"
-          cat "results/ci-$SLUG.md" >> "$GITHUB_STEP_SUMMARY"
+          # An incomplete run (trials that could not be scored) fails, after its
+          # table is in the summary.
+          status=0
+          go run ./cmd/evals report "${args[@]}" || status=$?
+          if [[ -f "results/ci-$SLUG.md" ]]; then cat "results/ci-$SLUG.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          exit "$status"
       - name: Compare with the baseline
         if: inputs.gate
         env:

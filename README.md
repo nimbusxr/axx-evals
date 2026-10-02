@@ -93,20 +93,33 @@ go run ./cmd/evals run --agent oracle --conditions none --expect-reward 1
 go run ./cmd/evals run --agent nop --conditions none --expect-reward 0
 
 # Evaluate a model under every condition. The OpenRouter key comes from Infisical
-# (.infisical.json links this checkout to its project); it costs model credits.
+# (.infisical.json links this checkout to its project); it costs model credits. One agent
+# at a time: the account's rate limit (below) allows no more.
 infisical run -- go run ./cmd/evals run --agent opencode --model openrouter/openai/gpt-6-luna \
-  --ak version=1.18.34
+  --ak version=1.18.34 --concurrency 1
 ```
 
 `run` builds the images (with the axx release `images/base/axx.env` names: its version and the
 checksums of its Linux archives, from the release's `checksums.txt`), writes one Harbor dataset per condition
 under `.work/datasets/`, runs `harbor run` for each (jobs under `.work/jobs/`), and writes
 `results/<date>-<agent>.json` and `.md`. A condition whose Harbor run fails does not stop the
-others: the results keep its finished trials, and the run exits 1 afterwards. A trial whose
-containers fail to build or start (a database that exits at startup, say) runs again, up to
-twice: Harbor retries the exceptions only infrastructure raises (`RuntimeError`,
-`EnvironmentStartTimeoutError`, `HealthcheckError`, matched by exact name), never an agent's
-(`NonZeroAgentExitCodeError`, `AgentTimeoutError`), so no attempt gets a second chance. Useful flags:
+others: the results keep its finished trials, and the run exits 1 afterwards.
+
+A trial that something other than the agent ended runs again, up to twice, after 60 s and then
+120 s: its containers failed to build or start (`RuntimeError`, which Harbor raises plain only
+for infrastructure, `EnvironmentStartTimeoutError`, `HealthcheckError`), or the model provider's
+rate limit cut the agent off (`ApiRateLimitError`). Harbor matches exact type names, so the
+agent's own failures (`NonZeroAgentExitCodeError`, `AgentTimeoutError`) are never retried and
+no attempt gets a second chance (`results.NotScored`; `run` writes Harbor's retry settings to
+`.work/datasets/<run>-harbor.json`). A trial that still ends in one of them is **not scored**:
+the results leave it out, list it, and the run (and `report`) exits 1, since the scores then rest
+on fewer trials than asked for.
+
+**Rate limits.** Every agent sends its model about 14 requests a minute, 22 at its busiest.
+OpenRouter limits this account to 20 requests a minute per model for now ("new accounts are
+limited to 20 requests per minute for this model"), so only one agent can work at a time:
+`--concurrency 1` locally, `agents: 1` in CI. Ten at once (the first parallel run) had 80 of
+126 trials cut off. Raise them only with the limit. Useful flags:
 `--tasks a,b`, `--conditions none,both`, `--attempts 3` (Harbor's `-k`), `--concurrency 4` (each
 trial runs its own databases, so budget about 4 GB of memory per concurrent trial),
 `--skip-images`, `--dry-run` (print the Harbor commands), `--include-pending` (run tasks whose
@@ -313,9 +326,10 @@ Two workflows:
   under every aid condition, and the oracle get 1 again under each on `rest-crud-happy-path` and
   `init-first-feature` (the shared starting project and a bare one); every answer in
   `testdata/negative/` must get 0. Nothing costs money.
-- **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks
-  and attempts), from `main` only, never on pull requests. It runs OpenCode, one job per
-  condition, all at once on their own runners, two trials at a time in each, then a
+- **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks,
+  attempts and agents at once), from `main` only, never on pull requests. It runs OpenCode, one
+  job per condition on its own runner with one trial at a time, `agents` jobs at once (1 while
+  the account's rate limit allows one agent; see "Rate limits" above), then a
   report job merges them into `results/ci-<model>.json` and `.md`, adds the table to the run
   summary and applies the gate when the model has a baseline. The Harbor jobs (every trial's
   logs and trajectory) are kept as artifacts for 90 days.

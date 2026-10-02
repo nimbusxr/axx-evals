@@ -54,11 +54,17 @@ type Result struct {
 	// Reward is the mean reward over the trials (0-1).
 	Reward float64 `json:"reward"`
 	// Core is the mean core reward over the trials (0-1).
-	Core   float64 `json:"core"`
-	Trials int     `json:"trials"`
-	Passed int     `json:"passed"`
-	// Errors are trials that ended in an exception (agent or environment).
+	Core float64 `json:"core"`
+	// Trials are the scored trials; Reward and Core are their means.
+	Trials int `json:"trials"`
+	Passed int `json:"passed"`
+	// Errors are scored trials that ended in an exception of the agent's own
+	// (it timed out or its process failed); the verifier's reward counts.
 	Errors int `json:"errors,omitempty"`
+	// Unscored are trials cut off by something other than the agent (see
+	// NotScored), by exception type: they are left out of Trials and the
+	// rewards, and the run reports them.
+	Unscored map[string]int `json:"unscored,omitempty"`
 	// MutantsCaught / MutantsTotal from the verifier, summed over trials.
 	MutantsCaught int `json:"mutantsCaught,omitempty"`
 	MutantsTotal  int `json:"mutantsTotal,omitempty"`
@@ -66,6 +72,55 @@ type Result struct {
 	CostUSD      float64 `json:"costUsd,omitempty"`
 	InputTokens  int64   `json:"inputTokens,omitempty"`
 	OutputTokens int64   `json:"outputTokens,omitempty"`
+}
+
+// NotScored are the exceptions that end a trial for reasons other than the
+// agent: its containers failed to build or start (RuntimeError, which Harbor
+// raises plain only for infrastructure, EnvironmentStartTimeoutError,
+// HealthcheckError) or the model provider's rate limit cut it off
+// (ApiRateLimitError). Harbor matches exact type names. `evals run` has Harbor
+// retry these; a trial that still ends in one is not scored, since its reward
+// says nothing about the agent. What the agent does ends in other types
+// (NonZeroAgentExitCodeError, AgentTimeoutError), which are scored.
+var NotScored = []string{"RuntimeError", "EnvironmentStartTimeoutError", "HealthcheckError", "ApiRateLimitError"}
+
+func notScored(exceptionType string) bool {
+	for _, t := range NotScored {
+		if t == exceptionType {
+			return true
+		}
+	}
+	return false
+}
+
+// UnscoredCount is the number of a result's unscored trials.
+func (r *Result) UnscoredCount() int {
+	n := 0
+	for _, c := range r.Unscored {
+		n += c
+	}
+	return n
+}
+
+// Unscored lists each task and condition with trials that were not scored,
+// and why. Empty when every trial was scored.
+func (f *File) Unscored() []string {
+	var out []string
+	for _, t := range f.Tasks {
+		for _, c := range f.Conditions {
+			r := t.Results[c]
+			if r == nil || r.UnscoredCount() == 0 {
+				continue
+			}
+			types := make([]string, 0, len(r.Unscored))
+			for ty, n := range r.Unscored {
+				types = append(types, fmt.Sprintf("%s ×%d", ty, n))
+			}
+			sort.Strings(types)
+			out = append(out, fmt.Sprintf("%s (%s): %d trial(s) not scored: %s", t.ID, c, r.UnscoredCount(), strings.Join(types, ", ")))
+		}
+	}
+	return out
 }
 
 // Skipped is a task that did not run under a condition.
@@ -99,7 +154,9 @@ func (f *File) Unexpected(want float64) []string {
 		for _, c := range f.Conditions {
 			r := t.Results[c]
 			switch {
-			case (r == nil || r.Trials == 0) && byDesign[[2]string{t.ID, c}]:
+			case (r == nil || r.Trials == 0 && r.UnscoredCount() == 0) && byDesign[[2]string{t.ID, c}]:
+			case r != nil && r.UnscoredCount() > 0:
+				out = append(out, fmt.Sprintf("%s (%s): %d trial(s) not scored", t.ID, c, r.UnscoredCount()))
 			case r == nil || r.Trials == 0:
 				out = append(out, fmt.Sprintf("%s (%s): no trial ran", t.ID, c))
 			case r.Errors > 0:
@@ -197,7 +254,9 @@ type trialResult struct {
 	VerifierResult *struct {
 		Rewards map[string]float64 `json:"rewards"`
 	} `json:"verifier_result"`
-	ExceptionInfo json.RawMessage `json:"exception_info"`
+	ExceptionInfo *struct {
+		Type string `json:"exception_type"`
+	} `json:"exception_info"`
 }
 
 // FromHarborJob reads every trial of a Harbor job directory and returns the
@@ -236,6 +295,24 @@ func FromHarborJob(dir string) (map[string]*Result, error) {
 			r = &Result{}
 			out[id] = r
 		}
+		if a := tr.AgentResult; a != nil {
+			if a.CostUSD != nil {
+				r.CostUSD += *a.CostUSD
+			}
+			if a.InputTokens != nil {
+				r.InputTokens += *a.InputTokens
+			}
+			if a.OutputTokens != nil {
+				r.OutputTokens += *a.OutputTokens
+			}
+		}
+		if ex := tr.ExceptionInfo; ex != nil && notScored(ex.Type) {
+			if r.Unscored == nil {
+				r.Unscored = map[string]int{}
+			}
+			r.Unscored[ex.Type]++
+			continue
+		}
 		r.Trials++
 		reward, core := 0.0, 0.0
 		if tr.VerifierResult != nil {
@@ -248,7 +325,7 @@ func FromHarborJob(dir string) (map[string]*Result, error) {
 		caught, total := mutantCounts(filepath.Join(dir, e.Name(), "verifier", "verify.json"))
 		r.MutantsCaught += caught
 		r.MutantsTotal += total
-		if len(tr.ExceptionInfo) > 0 && string(tr.ExceptionInfo) != "null" {
+		if tr.ExceptionInfo != nil {
 			r.Errors++
 		}
 		if reward >= 1 {
@@ -256,21 +333,12 @@ func FromHarborJob(dir string) (map[string]*Result, error) {
 		}
 		sums[id] += reward
 		coreSums[id] += core
-		if a := tr.AgentResult; a != nil {
-			if a.CostUSD != nil {
-				r.CostUSD += *a.CostUSD
-			}
-			if a.InputTokens != nil {
-				r.InputTokens += *a.InputTokens
-			}
-			if a.OutputTokens != nil {
-				r.OutputTokens += *a.OutputTokens
-			}
-		}
 	}
 	for id, r := range out {
-		r.Reward = sums[id] / float64(r.Trials)
-		r.Core = coreSums[id] / float64(r.Trials)
+		if r.Trials > 0 {
+			r.Reward = sums[id] / float64(r.Trials)
+			r.Core = coreSums[id] / float64(r.Trials)
+		}
 	}
 	return out, nil
 }
@@ -314,7 +382,14 @@ func (f *File) Markdown() string {
 	}
 	fmt.Fprintf(&b, ", %s\n\n", f.Date)
 	if f.Axx != "" || f.Harbor != "" {
-		fmt.Fprintf(&b, "axx %s, Harbor %s. A cell is the share of trials whose verifier gave reward 1; `err` counts trials that ended in an exception.\n\n", orDash(f.Axx), orDash(f.Harbor))
+		fmt.Fprintf(&b, "axx %s, Harbor %s. A cell is the share of trials whose verifier gave reward 1; `err` counts scored trials that ended in an exception of the agent's own (a timeout, a crash); `not scored` counts trials cut off by the infrastructure or the model provider's rate limit, which the scores leave out.\n\n", orDash(f.Axx), orDash(f.Harbor))
+	}
+	if bad := f.Unscored(); len(bad) > 0 {
+		b.WriteString("**Incomplete run:** some trials were not scored, so the scores below rest on fewer trials than the run asked for. Rerun them before comparing conditions.\n\n")
+		for _, line := range bad {
+			fmt.Fprintf(&b, "- %s\n", line)
+		}
+		b.WriteString("\n")
 	}
 	if len(f.CoreScores) > 0 {
 		b.WriteString("The **core score** holds every condition to the same checks: the tests pass against the correct service, twice, and against its correct variants (the same service as it may differ within its contract), and fail against every planted bug, with no cheating. The **score** adds what only an axx suite has (`axx validate`, the features' readability, `axx lint` where the task asks); without axx (`plain`) the two are the same.\n\n")
@@ -368,8 +443,11 @@ func (f *File) Markdown() string {
 }
 
 func cell(r *Result) string {
-	if r == nil || r.Trials == 0 {
+	if r == nil || r.Trials == 0 && r.UnscoredCount() == 0 {
 		return "-"
+	}
+	if r.Trials == 0 {
+		return fmt.Sprintf("not scored (%d)", r.UnscoredCount())
 	}
 	var s string
 	if r.Trials == 1 {
@@ -379,6 +457,9 @@ func cell(r *Result) string {
 	}
 	if r.Errors > 0 {
 		s += fmt.Sprintf(" (%d err)", r.Errors)
+	}
+	if n := r.UnscoredCount(); n > 0 {
+		s += fmt.Sprintf(" (%d not scored)", n)
 	}
 	return s
 }
