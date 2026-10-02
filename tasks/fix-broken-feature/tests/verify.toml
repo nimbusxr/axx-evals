@@ -6,3 +6,4 @@ preserve_scenarios = [
   "An overweight manifest line is rejected",
 ]
 mutants = ["import-wrong-source", "import-accepts-overweight"]
+variants = ["import-takes-seconds", "json-properties-reordered"]

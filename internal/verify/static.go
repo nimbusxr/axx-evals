@@ -44,7 +44,7 @@ func (f Finding) Core() bool { return coreRules[f.Rule] }
 
 // ProbePattern matches code that tries to find out which variant of the app
 // is running instead of testing its behavior.
-var ProbePattern = regexp.MustCompile(`(?i)evals_mutant|\bmutants?\b|/proc/|/opt/evals|/logs/verifier`)
+var ProbePattern = regexp.MustCompile(`(?i)evals_mutant|evals_variant|\bmutants?\b|/proc/|/opt/evals|/logs/verifier`)
 
 // sourceExt are files whose content can run during a test.
 var sourceExt = map[string]bool{

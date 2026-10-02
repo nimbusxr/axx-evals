@@ -5,8 +5,8 @@ name: evals
 # so they only run on demand, from main: the OPENROUTER_API_KEY secret lives in the
 # evals environment, which only main can use (Infisical syncs it there).
 #
-# One job per condition, one after another, so a run is one trial at a time and no
-# job comes near GitHub's 6 hours; the report job then merges them.
+# One job per condition, all at once, each on its own runner with two trials at a time;
+# the report job then merges them. The model spend is the same as one after another.
 on:
   workflow_dispatch:
     inputs:
@@ -76,7 +76,6 @@ jobs:
     environment: evals
     timeout-minutes: 350
     strategy:
-      max-parallel: 1
       fail-fast: false
       matrix:
         condition: ${{ fromJSON(needs.plan.outputs.conditions) }}
@@ -113,7 +112,7 @@ jobs:
             exit 1
           fi
           args=(--agent "$AGENT" --model "$MODEL" --ak "version=$OPENCODE_VERSION" --conditions "$CONDITION"
-            --attempts "$ATTEMPTS" --concurrency 1 --skip-images --jobs-dir .work/jobs --out "results/ci-$CONDITION")
+            --attempts "$ATTEMPTS" --concurrency 2 --skip-images --jobs-dir .work/jobs --out "results/ci-$CONDITION")
           if [[ -n "$TASKS" ]]; then args+=(--tasks "$TASKS"); fi
           go run ./cmd/evals run "${args[@]}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

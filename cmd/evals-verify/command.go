@@ -11,8 +11,8 @@ import (
 
 // runCommand verifies tests of any kind (mode = "command"): the agent's
 // command must pass against the correct app (run.repeat times, on fresh data
-// each time) and fail against every mutant the task targets. Every check here
-// is a core check.
+// each time) and against every correct variant, and fail against every mutant
+// the task targets. Every check here is a core check.
 func (v *verifier) runCommand(ctx context.Context) error {
 	script := strings.Fields(v.spec.Command)
 	if len(script) == 0 {
@@ -34,7 +34,7 @@ func (v *verifier) runCommand(ctx context.Context) error {
 			label = fmt.Sprintf("correct-%d", i)
 			name = fmt.Sprintf("passes against the correct app (run %d of %d, fresh data)", i, v.spec.Run.Repeat)
 		}
-		res, err := v.commandRun(ctx, label, "", script)
+		res, err := v.commandRun(ctx, label, "", "", script)
 		if err != nil {
 			return v.fail(name, err)
 		}
@@ -43,11 +43,26 @@ func (v *verifier) runCommand(ctx context.Context) error {
 		}
 	}
 
+	// The correct variants: the tests must pass on each. A failure fails the
+	// core reward; the mutants still run.
+	for _, n := range v.spec.Variants {
+		res, err := v.commandRun(ctx, "variant-"+n, "", n, script)
+		ok := err == nil && res.ExitCode == 0
+		v.report.Variants[n] = ok
+		detail := ""
+		if err != nil {
+			detail = err.Error()
+		} else {
+			detail = describeCommand(res)
+		}
+		v.check(variantCheck(n), ok, detail)
+	}
+
 	// Mutants: any failure of the tests catches one.
 	for _, m := range v.spec.Mutants {
 		kill := &Kill{}
 		v.report.Mutants[m] = kill
-		res, err := v.commandRun(ctx, "mutant-"+m, m, script)
+		res, err := v.commandRun(ctx, "mutant-"+m, m, "", script)
 		switch {
 		case err != nil:
 			kill.Detail = err.Error()
@@ -68,21 +83,22 @@ func (v *verifier) fail(name string, err error) error {
 	return nil
 }
 
-// commandRun resets the data, starts the app (as a mutant when m is set),
-// runs the command as the tester user and stops the app.
-func (v *verifier) commandRun(ctx context.Context, label, m string, script []string) (*RunResult, error) {
+// commandRun resets the data, starts the app (as a mutant when m is set, as a
+// correct variant when variant is), runs the command as the tester user and
+// stops the app.
+func (v *verifier) commandRun(ctx context.Context, label, m, variant string, script []string) (*RunResult, error) {
 	if err := v.reset(ctx); err != nil {
 		return nil, err
 	}
-	app, err := v.startApp(ctx, label, m)
+	app, err := v.startApp(ctx, label, m, variant)
 	if err != nil {
 		return nil, err
 	}
 	defer v.stopApp(app)
 	start := time.Now()
 	out, code, err := v.asTester(ctx, v.spec.Run.Timeout.Duration, v.opt.workspace, script[0], script[1:]...)
-	_ = os.WriteFile(filepath.Join(v.opt.out, "run-"+label+".log"), out, 0o644)
-	r := &RunResult{Label: label, Mutant: m, ExitCode: code, Seconds: time.Since(start).Seconds(), Error: tail(string(out), 600)}
+	_ = os.WriteFile(filepath.Join(v.logs, "run-"+label+".log"), out, 0o644)
+	r := &RunResult{Label: label, Mutant: m, Variant: variant, ExitCode: code, Seconds: time.Since(start).Seconds(), Error: tail(string(out), 600)}
 	if err != nil {
 		// A timeout: the tests did not pass.
 		r.ExitCode, r.Error = -1, err.Error()+"; "+tail(string(out), 400)

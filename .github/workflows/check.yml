@@ -92,9 +92,20 @@ jobs:
         run: go run ./cmd/evals run --agent oracle --conditions none,plain --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle
       - name: Doing nothing fails (nop)
         run: go run ./cmd/evals run --agent nop --conditions none,plain --skip-images --concurrency 2 --expect-reward 0 --out results/ci-nop
-      # The conditions change only the starting project: one task under each is enough.
-      - name: The agent aids build (oracle, one task, every condition)
-        run: go run ./cmd/evals run --agent oracle --conditions skills,mcp,both --tasks rest-crud-happy-path --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle-conditions
+      # The conditions change only the starting project, so every task's must build under
+      # each; the oracle then passes under each on a task of each kind of starting project
+      # (the shared one, and a bare repository before `axx init`).
+      - name: Every task's environment builds under every condition
+        run: |
+          for c in skills mcp both; do
+            go run ./cmd/evals prepare --condition "$c" --out ".work/aids/$c"
+            for env in ".work/aids/$c"/*/environment; do
+              echo "== $c: $(basename "$(dirname "$env")")"
+              docker build -q -t axx-evals-aids-check "$env" > /dev/null
+            done
+          done
+      - name: The agent aids work (oracle, every condition)
+        run: go run ./cmd/evals run --agent oracle --conditions skills,mcp,both --tasks rest-crud-happy-path,init-first-feature --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle-conditions
       # Weak or cheating answers (testdata/negative/README.md) must not earn a reward.
       - name: The negative answers fail
         run: |

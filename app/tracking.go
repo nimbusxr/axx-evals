@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"time"
@@ -102,22 +103,31 @@ func (t *trackingStore) Get(ctx context.Context, ref string) (*trackingView, err
 	return &v, nil
 }
 
-func (t *trackingStore) runProjector(ctx context.Context, every time.Duration, mut mutant.Set) {
+func (t *trackingStore) runProjector(ctx context.Context, every time.Duration, mut, variants mutant.Set) {
 	tick := time.NewTicker(every)
 	defer tick.Stop()
+	// With the tracking-takes-seconds variant, a parcel's view is updated only
+	// once its newest pending scan arrived 3 seconds ago (the docs promise an
+	// update within a few seconds): arrived holds when the projector first saw
+	// each pending scan.
+	var delay time.Duration
+	if variants.On("tracking-takes-seconds") {
+		delay = 3 * time.Second
+	}
+	arrived := map[string]time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
 		}
-		if err := t.project(ctx, mut); err != nil && ctx.Err() == nil {
+		if err := t.project(ctx, mut, delay, arrived); err != nil && ctx.Err() == nil {
 			t.log.Warn("tracking projection failed", "err", err)
 		}
 	}
 }
 
-func (t *trackingStore) project(ctx context.Context, mut mutant.Set) error {
+func (t *trackingStore) project(ctx context.Context, mut mutant.Set, delay time.Duration, arrived map[string]time.Time) error {
 	scans := t.db.Collection("scans")
 	cur, err := scans.Find(ctx, bson.D{{Key: "projected", Value: bson.D{{Key: "$ne", Value: true}}}},
 		options.Find().SetLimit(500).SetProjection(bson.D{{Key: "parcelRef", Value: 1}}))
@@ -131,13 +141,34 @@ func (t *trackingStore) project(ctx context.Context, mut mutant.Set) error {
 	if len(pending) == 0 {
 		return nil
 	}
+	now := time.Now()
+	ready := map[string]bool{} // parcel -> all of its pending scans arrived long enough ago
+	for _, d := range pending {
+		key := fmt.Sprint(d["_id"])
+		if _, ok := arrived[key]; !ok {
+			arrived[key] = now
+		}
+		ref, _ := d["parcelRef"].(string)
+		old := now.Sub(arrived[key]) >= delay
+		if r, seen := ready[ref]; !seen || r {
+			ready[ref] = old
+		}
+	}
 	refs := map[string]bool{}
 	ids := make([]any, 0, len(pending))
 	for _, d := range pending {
+		ref, _ := d["parcelRef"].(string)
+		if !ready[ref] {
+			continue
+		}
 		ids = append(ids, d["_id"])
-		if ref, ok := d["parcelRef"].(string); ok && ref != "" {
+		delete(arrived, fmt.Sprint(d["_id"]))
+		if ref != "" {
 			refs[ref] = true
 		}
+	}
+	if len(ids) == 0 {
+		return nil
 	}
 	for ref := range refs {
 		if err := t.rebuild(ctx, ref, mut); err != nil {

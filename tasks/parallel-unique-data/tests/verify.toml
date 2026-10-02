@@ -6,6 +6,7 @@ config_keys = ["lint"]
 required = ["seeds/**"]
 min_scenarios = 3
 mutants = ["list-ignores-sender-filter", "delete-not-removed"]
+variants = ["json-properties-reordered"]
 
 [lint]
 required = true

@@ -2,3 +2,4 @@
 allowed = ["features/**", "seeds/**"]
 min_scenarios = 2
 mutants = ["skips-address-check", "address-check-without-api-key", "ignores-undeliverable"]
+variants = ["json-properties-reordered"]

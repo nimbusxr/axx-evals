@@ -27,8 +27,8 @@ The ids are pinned (never an alias such as `~google/gemini-pro-latest`), so runs
 
 | Path | What |
 | --- | --- |
-| `app/` | **parcels**, the system under test: a Go HTTP service (OpenAPI 3.1 at `/openapi.json`) with PostgreSQL storage, a MongoDB tracking read model, a manifest importer, calls to a downstream address service (WireMock in tests) and Avro `ParcelRegistered` events on Kafka. It can be started with deliberate bugs (mutants). `app/compose.yaml` runs it with its infrastructure. |
-| `internal/mutant/` | The mutants: each a realistic bug a good acceptance test must catch. |
+| `app/` | **parcels**, the system under test: a Go HTTP service (OpenAPI 3.1 at `/openapi.json`) with PostgreSQL storage, a MongoDB tracking read model, a manifest importer, calls to a downstream address service (WireMock in tests) and Avro `ParcelRegistered` events on Kafka. It can be started with deliberate bugs (mutants) or as a correct variant. `app/compose.yaml` runs it with its infrastructure. |
+| `internal/mutant/` | The mutants, each a realistic bug a good acceptance test must catch, and the correct variants, each a way the service may differ within its contract that a good acceptance test must not trip over. |
 | `workspace/` | The starting project most tasks share: README, `axx.yaml`, the OpenAPI contract, the business rules in `docs/`, the WireMock stubs. |
 | `workspace-plain/` | What the starting project without axx has instead: its README (and `.gitignore`). |
 | `tasks/<id>/` | The tasks (Harbor format, below). |
@@ -41,17 +41,30 @@ The ids are pinned (never an alias such as `~google/gemini-pro-latest`), so runs
 
 ## The tasks
 
-| Task | Needs | Criteria | Mutants it must catch |
-| --- | --- | --- | --- |
-| `rest-crud-happy-path` | rest | register, look up, change, cancel a parcel | `wrong-status-on-create`, `update-not-persisted`, `delete-not-removed` |
-| `openapi-reject-invalid` | rest | overweight and unknown service level refused with 400; nothing stored (needs a deliberately relaxed OpenAPI validation level) | `no-weight-limit`, `no-service-level-check` |
-| `mock-address-check` | rest | the postcode check with the address service (WireMock): called once, with the API key; zone stored; undeliverable refused with 422 | `skips-address-check`, `address-check-without-api-key`, `ignores-undeliverable` |
-| `sql-manifest-import` | | seed manifest lines, assert the parcel rows (JSON columns) and the line status | `import-drops-postcode`, `import-leaves-line-pending`, `import-wrong-source`, `import-accepts-overweight` |
-| `mongo-tracking-view` | | seed scans in MongoDB, assert the tracking read model | `tracking-status-from-first-scan`, `tracking-counts-duplicate-scans` |
-| `kafka-registered-event` | rest, kafka | an Avro `ParcelRegistered` event is published, keyed and filled correctly | `event-not-published`, `event-weight-in-kilograms` |
-| `fix-broken-feature` | | repair a feature with a wrong step text and a wrong expectation, keeping its scenarios | `import-wrong-source`, `import-accepts-overweight` |
-| `init-first-feature` | rest | `axx init` a bare repository, make `axx run` start the service, write the first feature | `wrong-status-on-duplicate`, `wrong-status-on-create` |
-| `parallel-unique-data` | rest | a shop's parcel list, correct under 16 workers in random order, plus an `axx lint` rule that bites | `list-ignores-sender-filter`, `delete-not-removed` |
+| Task | Needs | Criteria | Mutants it must catch | Variants it must pass |
+| --- | --- | --- | --- | --- |
+| `rest-crud-happy-path` | rest | register, look up, change, cancel a parcel | `wrong-status-on-create`, `update-not-persisted`, `delete-not-removed` | `json-properties-reordered` |
+| `openapi-reject-invalid` | rest | overweight and unknown service level refused with 400; nothing stored (needs a deliberately relaxed OpenAPI validation level) | `no-weight-limit`, `no-service-level-check` | `json-properties-reordered` |
+| `mock-address-check` | rest | the postcode check with the address service (WireMock): called once, with the API key; zone stored; undeliverable refused with 422 | `skips-address-check`, `address-check-without-api-key`, `ignores-undeliverable` | `json-properties-reordered` |
+| `sql-manifest-import` | | seed manifest lines, assert the parcel rows (JSON columns) and the line status | `import-drops-postcode`, `import-leaves-line-pending`, `import-wrong-source`, `import-accepts-overweight` | `import-takes-seconds`, `json-properties-reordered` |
+| `mongo-tracking-view` | | seed scans in MongoDB, assert the tracking read model | `tracking-status-from-first-scan`, `tracking-counts-duplicate-scans` | `tracking-takes-seconds`, `json-properties-reordered` |
+| `kafka-registered-event` | rest, kafka | an Avro `ParcelRegistered` event is published, keyed and filled correctly | `event-not-published`, `event-weight-in-kilograms` | `events-topic-gzip`, `json-properties-reordered` |
+| `fix-broken-feature` | | repair a feature with a wrong step text and a wrong expectation, keeping its scenarios | `import-wrong-source`, `import-accepts-overweight` | `import-takes-seconds`, `json-properties-reordered` |
+| `init-first-feature` | rest | `axx init` a bare repository, make `axx run` start the service, write the first feature | `wrong-status-on-duplicate`, `wrong-status-on-create` | `json-properties-reordered` |
+| `parallel-unique-data` | rest | a shop's parcel list, correct under 16 workers in random order, plus an `axx lint` rule that bites | `list-ignores-sender-filter`, `delete-not-removed` | `json-properties-reordered` |
+
+The correct variants (`internal/mutant`) differ from the default service only where the docs and
+the contract leave room, the way real services do:
+
+| Variant | The change |
+| --- | --- |
+| `json-properties-reordered` | JSON response bodies list their properties in another order. |
+| `import-takes-seconds` | Manifest lines are imported 3 seconds after they arrive, not at the next poll (the docs promise "within a few seconds"). |
+| `tracking-takes-seconds` | The tracking view is updated 3 seconds after a parcel's latest scan arrives (the docs promise "within a few seconds"). |
+| `events-topic-gzip` | The events topic has `compression.type=gzip`, so the broker stores every event in a gzip-compressed batch. |
+
+A test that compares JSON as text, checks a background job before it had time, or reads Kafka
+with a decoder that cannot decompress passes against the default service and fails a variant.
 
 "Needs" lists the axx packs beyond core, mock, sql and mongo (`requires` in `task.toml`). The six
 behavior tasks also have a version without axx (`tasks/<id>/plain`, below); setting axx up,
@@ -126,7 +139,9 @@ Harbor task): `harbor run -p tasks/sql-manifest-import -a oracle`.
   `axx init` in a scratch project and keeps its `AGENTS.md`). Every initialized axx project has
   it, so every condition except the bare baseline includes it; set `agents_md` to change that.
 - **Skills**: `axx skills install` in the project, exactly as a user runs it (`.agents/skills`
-  for OpenCode, Codex, Cursor, Gemini CLI and Copilot).
+  for OpenCode, Codex, Cursor, Gemini CLI and Copilot). A repository not set up for axx yet
+  (`init-first-feature`) has no packs for the project's skills, so it gets them as a developer
+  has them before `axx init`: `axx skills install --scope user`, in `~/.agents/skills`.
 - **MCP**: `axx mcp`, registered through Harbor's `--mcp-config conditions/mcp.json` (a
   Claude-style `.mcp.json`), which Harbor turns into each agent's own MCP configuration (for
   OpenCode, the `mcp` section of its `opencode.json`).
@@ -176,7 +191,7 @@ after the agent finishes, Harbor copies the agent's `/app` (without `.axx` and `
 fresh container built from `tests/Dockerfile`, with fresh databases, and runs `tests/test.sh`,
 which runs `evals-verify` with the task's `tests/verify.toml`. Nothing the agent did to its own
 container (binaries, databases, the app) can reach the verifier, and the agent never sees the
-verifier, its checks or the list of mutants.
+verifier, its checks or the lists of mutants and variants.
 
 The verifier writes two rewards. The **reward** is 1 only if every check passes:
 
@@ -186,32 +201,40 @@ The verifier writes two rewards. The **reward** is 1 only if every check passes:
    once the verifier plants a copy of one of the agent's seed files (the rule bites).
 3. **The correct app passes**: `axx run` exits 0 with at least `min_scenarios` passing scenarios,
    nothing skipped, pending or undefined, every scenario tag filter overridden (a `@wip` tag does
-   not hide a scenario), `--workers 8` and a random order. `repeat` runs it again on fresh data in
-   new random orders; `start_apps` makes the first run a plain `axx run` that starts the service
-   from the agent's own `axx.yaml`; `preserve_scenarios` must still exist and pass.
-4. **Every targeted mutant fails**: for each mutant the verifier resets all data, starts the app
+   not hide a scenario), `--workers 8` and a random order, **twice** (`run.repeat`, default 2;
+   more where the task asks), each time on fresh data in a new random order, so a flaky suite
+   fails; `start_apps` makes the first run a plain `axx run` that starts the service from the
+   agent's own `axx.yaml`; `preserve_scenarios` must still exist and pass.
+4. **Every correct variant passes**: for each of the task's `variants` the verifier resets all
+   data, starts the app as that variant and requires the same as on the correct app.
+5. **Every targeted mutant fails**: for each mutant the verifier resets all data, starts the app
    with that bug, runs the suite and requires exit code 1 with at least one failing scenario. Exit
    codes 2 to 4 (configuration, undefined steps, app failures) do not count as catching the bug.
 
 The **core reward** counts only what tests of any kind are held to: the `allowed-paths`,
-`required`, `absent`, `must-not-contain` and `probe` rules, passing against the correct app, and
-failing against every mutant. It leaves out what only an axx suite has: `axx validate`, the
+`required`, `absent`, `must-not-contain` and `probe` rules, passing against the correct app and
+every correct variant, and failing against every mutant. It leaves out what only an axx suite has: `axx validate`, the
 features' readability rules, `config-keys`, `axx lint`, `min_scenarios` and
 `preserve_scenarios`. Every condition, `plain` included, compares on it. The verifier runs the
 suite even when one of those axx-only checks fails, so the core reward is always decided.
 
 In **command mode** (`mode = "command"`, the plain condition) the agent's `command` (default
 `./acceptance-tests.sh`, run with `bash`) stands in for `axx run`: on the correct app it must exit
-0 (`run.repeat` times, on fresh data), and on each mutant any other exit, or a timeout
-(`run.timeout`), catches the bug. `protected` lists the files the agent must leave as they are
+0 (`run.repeat` times, on fresh data) and on each correct variant too, and on each mutant any
+other exit, or a timeout (`run.timeout`), catches the bug. Any exit counts there, so the variants
+are what keep a test from catching bugs by breaking: a test that fails for reasons of its own
+(a decoder that cannot read a compressed batch, a check that does not wait for the importer)
+fails a variant as well. `protected` lists the files the agent must leave as they are
 (the README, the contract, the docs, the stubs, the schemas); everything else is `allowed`. The
 two rewards are the same there.
 
-The verifier starts and stops the app itself (as the `parcels` user, with `EVALS_MUTANT` in the
-app's own environment only) and runs axx as the unprivileged `tester` user, so nothing the suite runs can
-read which variant is running. `verify.json` in the trial's `verifier/` directory holds
-every check with its details (`core` marks the core ones), each run's report or output and the
-app logs; `reward.json` has `reward` and `core`.
+The verifier starts and stops the app itself (as the `parcels` user, with `EVALS_MUTANT` and
+`EVALS_VARIANT` in the app's own environment only) and runs the tests as the unprivileged `tester`
+user, so nothing the suite runs can read which variant is running. Each run's logs stay in a
+directory only root can read until the verifier finishes; only then are they copied to the
+trial's `verifier/` directory, with `verify.json`, which holds every check with its details
+(`core` marks the core ones), each run's report or output and the app logs; `reward.json` has
+`reward` and `core`.
 
 ## Anti-cheat rules
 
@@ -223,11 +246,13 @@ app logs; `reward.json` has `reward` and `core`.
 | `variables` | `${var:...}` or `${env:...}` in a feature: data is chosen up front, never captured or passed between steps. |
 | `doc-string-code` | Doc strings with code (anything but a payload: JSON, XML, YAML, CSV, text). |
 | `scenario-name`, `no-outcome` | Unnamed or duplicate scenarios, and scenarios without a `Then` step. |
-| `probe` | Code that tries to detect the variant under test instead of testing behavior: references to `EVALS_MUTANT`, "mutant", `/proc/`, `/opt/evals`, `/logs/verifier` in sources the agent writes. |
+| `probe` | Code that tries to detect the variant under test instead of testing behavior: references to `EVALS_MUTANT`, `EVALS_VARIANT`, "mutant", `/proc/`, `/opt/evals`, `/logs/verifier` in sources the agent writes. |
 | mutant checks | Tests that pass no matter what (fake steps, missing assertions, assertions on the mock instead of the service) survive the mutants and get reward 0; tests that fail no matter what never pass the correct app. |
+| variant checks | Tests that depend on what the contract leaves open (JSON property order, how fast the importer or the tracking view is, how the broker stores events) fail a correct variant and get reward 0, even when they happen to fail every mutant. |
 
-The mutant checks are the core of it: a suite earns its reward only by passing against the
-correct service and failing against each deliberately broken one.
+The mutant and variant checks are the core of it: a suite earns its reward only by passing
+against the correct service and its correct variants, and failing against each deliberately
+broken one.
 
 ## Results and the release gate
 
@@ -277,11 +302,13 @@ Two workflows:
 - **`check`** runs on every pull request and push to `main`, with no secrets and no model: the Go
   tests (including the generated task files being up to date), actionlint and zizmor on the
   workflows, and the plumbing through Harbor. The oracle agent must get reward 1 on every task,
-  with axx and without (`none` and `plain`), the nop agent 0, and the oracle 1 again under every
-  aid condition on one task; every answer in `testdata/negative/` must get 0. Nothing costs money.
+  with axx and without (`none` and `plain`), the nop agent 0. Every task's environment must build
+  under every aid condition, and the oracle get 1 again under each on `rest-crud-happy-path` and
+  `init-first-feature` (the shared starting project and a bare one); every answer in
+  `testdata/negative/` must get 0. Nothing costs money.
 - **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks
   and attempts), from `main` only, never on pull requests. It runs OpenCode, one job per
-  condition one after another (one trial at a time, and no job near GitHub's 6 hours), then a
+  condition, all at once on their own runners, two trials at a time in each, then a
   report job merges them into `results/ci-<model>.json` and `.md`, adds the table to the run
   summary and applies the gate when the model has a baseline. The Harbor jobs (every trial's
   logs and trajectory) are kept as artifacts for 90 days.
@@ -301,17 +328,19 @@ on OpenRouter caps what runs can spend.
      `environment_mode = "separate"` and the `/app` artifact.
    - `instruction.md`: acceptance criteria as a product person writes them. Never step text.
    - `environment/workspace/`: files added to (or replacing) the starting project.
-   - `tests/verify.toml`: `allowed`, `min_scenarios`, `mutants` and any other rule from
-     `internal/spec/spec.go`.
+   - `tests/verify.toml`: `allowed`, `min_scenarios`, `mutants`, `variants` (every variant that
+     touches what the task tests) and any other rule from `internal/spec/spec.go`.
    - `solution/solve.sh` (and files): the reference solution, written as acceptance criteria a
      person can read.
 2. If no existing mutant fits, add one to `internal/mutant/mutant.go` and implement it in `app/`
-   (every mutant must be targeted by some task; `go test ./...` checks).
+   (every mutant must be targeted by some task; `go test ./...` checks). The same goes for a
+   correct variant, which must stay within what `workspace/docs/` and `openapi.yaml` promise.
 3. `go run ./cmd/evals sync` generates the task's Dockerfiles, compose files, `test.sh` and the
    initial-state manifest (`go test ./...` fails while they are stale).
 4. For a version without axx, add `plain/` with `instruction.md`, `tests/verify.toml`
    (`mode = "command"`, `allowed = ["**"]`, the `protected` files, `required =
-   ["acceptance-tests.sh"]`, the same `mutants`) and `solution/`; `sync` writes the rest.
+   ["acceptance-tests.sh"]`, the same `mutants` and `variants`) and `solution/`; `sync` writes the
+   rest.
 5. `go run ./cmd/evals check --solution <id>` must print reward 1 and
    `go run ./cmd/evals check --nop <id>` reward 0 (`--images` rebuilds the images first). `check`
    is Harbor in miniature: it starts the task's infrastructure with docker compose, builds the

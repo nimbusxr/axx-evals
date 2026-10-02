@@ -3,6 +3,7 @@ package spec
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,8 +11,9 @@ import (
 )
 
 // TestTasks loads every task of the repository: task.toml and verify.toml
-// must parse, name known mutants, and every mutant must be targeted by at
-// least one task.
+// must parse, name known mutants and variants, and every mutant and variant
+// must be used by at least one task. A version without axx holds its tests to
+// the same mutants and variants as the axx version, so the two compare.
 func TestTasks(t *testing.T) {
 	tasks, err := LoadTasks(filepath.Join("..", "..", "tasks"))
 	if err != nil {
@@ -20,7 +22,7 @@ func TestTasks(t *testing.T) {
 	if len(tasks) < 9 {
 		t.Fatalf("%d tasks, want at least 9", len(tasks))
 	}
-	targeted := map[string]bool{}
+	targeted, varied := map[string]bool{}, map[string]bool{}
 	for _, task := range tasks {
 		v, err := LoadVerify(filepath.Join(task.Dir, "tests", "verify.toml"))
 		if err != nil {
@@ -28,6 +30,19 @@ func TestTasks(t *testing.T) {
 		}
 		for _, m := range v.Mutants {
 			targeted[m] = true
+		}
+		for _, n := range v.Variants {
+			varied[n] = true
+		}
+		if task.PlainDir != "" {
+			pv, err := LoadVerify(filepath.Join(task.PlainDir, "tests", "verify.toml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(pv.Mutants, v.Mutants) || !slices.Equal(pv.Variants, v.Variants) {
+				t.Errorf("%s: the version without axx has mutants %v and variants %v, the axx version %v and %v",
+					task.ID(), pv.Mutants, pv.Variants, v.Mutants, v.Variants)
+			}
 		}
 		for _, f := range []string{"instruction.md", "solution/solve.sh"} {
 			if _, err := os.Stat(filepath.Join(task.Dir, f)); err != nil {
@@ -44,6 +59,11 @@ func TestTasks(t *testing.T) {
 	for _, m := range mutant.All {
 		if !targeted[m.Name] {
 			t.Errorf("mutant %s is not targeted by any task", m.Name)
+		}
+	}
+	for _, n := range mutant.Variants {
+		if !varied[n.Name] {
+			t.Errorf("variant %s is not used by any task", n.Name)
 		}
 	}
 }

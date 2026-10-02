@@ -2,3 +2,4 @@
 allowed = ["features/**", "seeds/**"]
 min_scenarios = 3
 mutants = ["wrong-status-on-create", "update-not-persisted", "delete-not-removed"]
+variants = ["json-properties-reordered"]
