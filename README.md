@@ -267,7 +267,7 @@ and its **core score** the mean core reward: the one to compare conditions on, `
   "date": "2026-10-02",
   "agent": "opencode",
   "model": "openrouter/openai/gpt-6-luna",
-  "axx": "0.1.7",
+  "axx": "0.1.8",
   "harbor": "0.23.0",
   "conditions": ["none", "skills", "mcp", "both", "plain"],
   "tasks": [
