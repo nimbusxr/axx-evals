@@ -38,6 +38,10 @@ type Wait struct {
 	Refused int `json:"refused"`
 	// Requests is the number of the trial's requests.
 	Requests int `json:"requests"`
+	// Models counts the requests by the model they asked for (the "model"
+	// of the request body), so a run shows any model besides the one under
+	// test.
+	Models map[string]int `json:"models,omitempty"`
 }
 
 // Proxy forwards requests to Target, waiting out the provider's rate limit.
@@ -110,7 +114,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	arrived := p.now()
 	refused, held := 0, false
 	var waited time.Duration
-	defer func() { p.record(trial, waited, refused) }()
+	model := requestModel(body)
+	defer func() { p.record(trial, model, waited, refused) }()
 	for {
 		if wait := p.waitFor(); wait > 0 {
 			held = true
@@ -307,7 +312,18 @@ func (p *Proxy) trial(tag string) string {
 	return name
 }
 
-func (p *Proxy) record(trial string, waited time.Duration, refused int) {
+// requestModel is the model a request body asks for, if any.
+func requestModel(body []byte) string {
+	var r struct {
+		Model string `json:"model"`
+	}
+	if json.Unmarshal(body, &r) != nil {
+		return ""
+	}
+	return r.Model
+}
+
+func (p *Proxy) record(trial, model string, waited time.Duration, refused int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	wt := p.waits[trial]
@@ -316,6 +332,12 @@ func (p *Proxy) record(trial string, waited time.Duration, refused int) {
 		p.waits[trial] = wt
 	}
 	wt.Requests++
+	if model != "" {
+		if wt.Models == nil {
+			wt.Models = map[string]int{}
+		}
+		wt.Models[model]++
+	}
 	wt.Refused += refused
 	wt.Seconds += waited.Seconds()
 }
@@ -328,7 +350,12 @@ func (p *Proxy) Waits() map[string]Wait {
 	defer p.mu.Unlock()
 	out := make(map[string]Wait, len(p.waits))
 	for k, v := range p.waits {
-		out[k] = *v
+		w := *v
+		w.Models = make(map[string]int, len(v.Models))
+		for m, n := range v.Models {
+			w.Models[m] = n
+		}
+		out[k] = w
 	}
 	return out
 }

@@ -35,10 +35,10 @@ const agentTimeoutMultiplier = "4"
 type modelProxy struct {
 	proxy  *ratelimit.Proxy
 	server *http.Server
-	// config is the OpenCode configuration (Harbor's --ak opencode_config):
-	// OpenRouter's base URL is the proxy, and every request carries the
-	// container's hostname, which the proxy maps to the trial.
-	config string
+	// provider is OpenCode's configuration of OpenRouter (the "provider"
+	// of opencode.json): its base URL is the proxy, and every request carries
+	// the container's hostname, which the proxy maps to the trial.
+	provider map[string]any
 }
 
 // startModelProxy serves the proxy where the agents' containers reach the
@@ -62,17 +62,15 @@ func startModelProxy() (*modelProxy, error) {
 	srv := &http.Server{Handler: p, ReadHeaderTimeout: 30 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	port := ln.Addr().(*net.TCPAddr).Port
-	cfg, _ := json.Marshal(map[string]any{
-		"provider": map[string]any{
-			"openrouter": map[string]any{
-				"options": map[string]any{
-					"baseURL": fmt.Sprintf("http://host.docker.internal:%d/api/v1", port),
-					"headers": map[string]string{ratelimit.TrialHeader: "{env:HOSTNAME}"},
-				},
+	provider := map[string]any{
+		"openrouter": map[string]any{
+			"options": map[string]any{
+				"baseURL": fmt.Sprintf("http://host.docker.internal:%d/api/v1", port),
+				"headers": map[string]string{ratelimit.TrialHeader: "{env:HOSTNAME}"},
 			},
 		},
-	})
-	return &modelProxy{proxy: p, server: srv, config: string(cfg)}, nil
+	}
+	return &modelProxy{proxy: p, server: srv, provider: provider}, nil
 }
 
 func (m *modelProxy) stop() {

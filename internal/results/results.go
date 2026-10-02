@@ -80,6 +80,9 @@ type Result struct {
 	// AgentSeconds and of the time budget.
 	RateLimitWaitSeconds float64 `json:"rateLimitWaitSeconds,omitempty"`
 	RateLimitRefused     int     `json:"rateLimitRefused,omitempty"`
+	// Models counts the trials' model requests by model, from the rate-limit
+	// proxy, every trial included.
+	Models map[string]int `json:"models,omitempty"`
 	// CostUSD and tokens, summed over trials when the agent reports them.
 	CostUSD      float64 `json:"costUsd,omitempty"`
 	InputTokens  int64   `json:"inputTokens,omitempty"`
@@ -151,6 +154,37 @@ func (f *File) Unscored() []string {
 			}
 			sort.Strings(types)
 			out = append(out, fmt.Sprintf("%s (%s): %d trial(s) not scored: %s", t.ID, c, r.UnscoredCount(), strings.Join(types, ", ")))
+		}
+	}
+	return out
+}
+
+// OtherModels lists each task and condition whose trials called a model
+// other than the one under test (File.Model, without its "openrouter/"
+// prefix, as the requests name it). Empty when only that model was called,
+// or when the run did not go through the proxy that counts them.
+func (f *File) OtherModels() []string {
+	if f.Model == "" {
+		return nil
+	}
+	want := strings.TrimPrefix(f.Model, "openrouter/")
+	var out []string
+	for _, t := range f.Tasks {
+		for _, c := range f.Conditions {
+			r := t.Results[c]
+			if r == nil {
+				continue
+			}
+			var others []string
+			for m, n := range r.Models {
+				if m != want {
+					others = append(others, fmt.Sprintf("%s ×%d", m, n))
+				}
+			}
+			if len(others) > 0 {
+				sort.Strings(others)
+				out = append(out, fmt.Sprintf("%s (%s): %s", t.ID, c, strings.Join(others, ", ")))
+			}
 		}
 	}
 	return out
@@ -361,6 +395,12 @@ func FromHarborJob(dir string, budgets map[string]float64) (map[string]*Result, 
 		wait := rl.Trials[e.Name()]
 		r.RateLimitWaitSeconds += wait.Seconds
 		r.RateLimitRefused += wait.Refused
+		for m, n := range wait.Models {
+			if r.Models == nil {
+				r.Models = map[string]int{}
+			}
+			r.Models[m] += n
+		}
 		working := -1.0
 		if a := tr.AgentExecution; a != nil && !a.StartedAt.IsZero() && !a.FinishedAt.IsZero() {
 			working = max(a.FinishedAt.Sub(a.StartedAt).Seconds()-wait.Seconds, 0)
@@ -457,6 +497,13 @@ func (f *File) Markdown() string {
 	fmt.Fprintf(&b, ", %s\n\n", f.Date)
 	if f.Axx != "" || f.Harbor != "" {
 		fmt.Fprintf(&b, "axx %s, Harbor %s. A cell is the share of trials whose verifier gave reward 1; `err` counts scored trials that ended in an exception of the agent's own (a timeout, a crash); `not scored` counts trials cut off by the infrastructure or the model provider's rate limit, which the scores leave out.\n\n", orDash(f.Axx), orDash(f.Harbor))
+	}
+	if other := f.OtherModels(); len(other) > 0 {
+		fmt.Fprintf(&b, "**Other models called:** the agents' requests went to models besides %s, so these trials are not that model's alone.\n\n", f.Model)
+		for _, line := range other {
+			fmt.Fprintf(&b, "- %s\n", line)
+		}
+		b.WriteString("\n")
 	}
 	if bad := f.Unscored(); len(bad) > 0 {
 		b.WriteString("**Incomplete run:** some trials were not scored, so the scores below rest on fewer trials than the run asked for. Rerun them before comparing conditions.\n\n")

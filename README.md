@@ -133,7 +133,14 @@ budget (`[agent] timeout_sec`) holds the agent to that working time, so Harbor g
 the budget in wall-clock time (`--agent-timeout-multiplier 4`), an agent that worked longer
 than its budget fails as if timed out, and one Harbor timed out only because of the waits is not
 scored (`RateLimitWaits`). The report says how long the limit held the agents in all.
-`go run ./cmd/evals proxy` serves the proxy on its own, to try it. Useful flags:
+`go run ./cmd/evals proxy` serves the proxy on its own, to try it.
+
+**One model.** Every model call of a trial goes to the model under test. OpenCode also uses a
+"small model" for side tasks like the session's title, and by default picks a cheaper model of
+the same provider; through OpenRouter that was `google/gemini-3.8-flash`, once per trial in the
+first runs. `run` sets OpenCode's `small_model` to the model under test (`--small-model` names
+another; `auto` leaves OpenCode's choice). The proxy counts each trial's requests by model, and
+a run whose agents called any other model says so in its report and exits 1. Useful flags:
 `--tasks a,b`, `--conditions none,both`, `--attempts 3` (Harbor's `-k`), `--concurrency 4` (each
 trial runs its own databases, so budget about 4 GB of memory per concurrent trial),
 `--skip-images`, `--dry-run` (print the Harbor commands), `--include-pending` (run tasks whose
