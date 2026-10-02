@@ -229,7 +229,8 @@ func plainManifest(evalsDir string) (manifest.Manifest, error) {
 }
 
 // appImages returns the image of each service in app/compose.yaml, where
-// Renovate keeps them current: the tasks' sidecars use the same ones.
+// Renovate keeps them current: the tasks' sidecars use the same ones. The
+// address service and MongoDB are the evals' own images (images/).
 func appImages(evalsDir string) (map[string]string, error) {
 	b, err := os.ReadFile(filepath.Join(evalsDir, "app", "compose.yaml"))
 	if err != nil {
@@ -243,8 +244,8 @@ func appImages(evalsDir string) (map[string]string, error) {
 	if err := yaml.Unmarshal(b, &c); err != nil {
 		return nil, fmt.Errorf("app/compose.yaml: %w", err)
 	}
-	images := map[string]string{"address-service": addressImage}
-	for _, s := range []string{"postgres", "mongo", "kafka", "schema-registry"} {
+	images := map[string]string{"address-service": addressImage, "mongo": mongoImage}
+	for _, s := range []string{"postgres", "kafka", "schema-registry"} {
 		img := c.Services[s].Image
 		if img == "" {
 			return nil, fmt.Errorf("app/compose.yaml: service %s has no image", s)
@@ -297,9 +298,6 @@ var sidecars = map[string]string{
 `,
 	"mongo": `  mongo:
     image: {{mongo}}
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: parcels
-      MONGO_INITDB_ROOT_PASSWORD: parcels
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 2s

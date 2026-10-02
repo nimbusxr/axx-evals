@@ -175,9 +175,12 @@ rest, as for every task.
   for any user.
 - **`axx-evals-verifier`**: the base plus the verifier, for the separate verifier container only.
 - **`axx-evals-address-service`**: WireMock with the service's stubs.
+- **`axx-evals-mongo`**: MongoDB with the `parcels` user created when the image is built. The
+  `mongo` image creates it at every start through a temporary server, which now and then still
+  holds the port when the real one starts (exit 48) and fails the trial.
 
-The tasks' sidecars (PostgreSQL, MongoDB, Kafka, the Schema Registry) use the images of
-`app/compose.yaml`; `go run ./cmd/evals sync` copies them into the tasks' compose files.
+The other sidecars (PostgreSQL, Kafka, the Schema Registry) use the images of `app/compose.yaml`;
+`go run ./cmd/evals sync` copies them into the tasks' compose files.
 
 To test another axx release, set `AXX_VERSION` and the two `AXX_SHA256_*` lines in
 `images/base/axx.env` from the release's `checksums.txt`, then rebuild the images and run the
