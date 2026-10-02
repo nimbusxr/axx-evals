@@ -12,6 +12,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/nimbusxr/axx-evals/internal/ratelimit"
 )
 
 // SchemaVersion of the result file.
@@ -68,10 +71,40 @@ type Result struct {
 	// MutantsCaught / MutantsTotal from the verifier, summed over trials.
 	MutantsCaught int `json:"mutantsCaught,omitempty"`
 	MutantsTotal  int `json:"mutantsTotal,omitempty"`
+	// AgentSeconds is the agents' working time, summed over the scored
+	// trials: the agent's run less what its requests waited on the model
+	// provider's rate limit.
+	AgentSeconds float64 `json:"agentSeconds,omitempty"`
+	// RateLimitWaitSeconds and RateLimitRefused: what the trials' requests
+	// spent on the provider's rate limit (internal/ratelimit), left out of
+	// AgentSeconds and of the time budget.
+	RateLimitWaitSeconds float64 `json:"rateLimitWaitSeconds,omitempty"`
+	RateLimitRefused     int     `json:"rateLimitRefused,omitempty"`
 	// CostUSD and tokens, summed over trials when the agent reports them.
 	CostUSD      float64 `json:"costUsd,omitempty"`
 	InputTokens  int64   `json:"inputTokens,omitempty"`
 	OutputTokens int64   `json:"outputTokens,omitempty"`
+}
+
+// RateLimitFile is the file in a Harbor job directory where `evals run`
+// writes what each trial's requests spent on the model provider's rate limit.
+const RateLimitFile = "rate-limit.json"
+
+// RateLimit is RateLimitFile.
+type RateLimit struct {
+	// Trials by trial directory name.
+	Trials map[string]ratelimit.Wait `json:"trials"`
+	// Unattributed: requests the proxy could not tie to a trial.
+	Unattributed ratelimit.Wait `json:"unattributed"`
+}
+
+// readRateLimit reads a job's RateLimitFile; none means no waits.
+func readRateLimit(dir string) RateLimit {
+	var rl RateLimit
+	if b, err := os.ReadFile(filepath.Join(dir, RateLimitFile)); err == nil {
+		_ = json.Unmarshal(b, &rl)
+	}
+	return rl
 }
 
 // NotScored are the exceptions that end a trial for reasons other than the
@@ -257,11 +290,29 @@ type trialResult struct {
 	ExceptionInfo *struct {
 		Type string `json:"exception_type"`
 	} `json:"exception_info"`
+	AgentExecution *struct {
+		StartedAt  time.Time `json:"started_at"`
+		FinishedAt time.Time `json:"finished_at"`
+	} `json:"agent_execution"`
 }
 
+// overBudget is the exception of a trial whose agent worked longer than the
+// task's budget, its waits on the rate limit left out (FromHarborJob).
+const overBudget = "AgentOverBudget"
+
+// waitedOut is the exception of a trial that Harbor timed out although its
+// agent's own working time was within the budget: the waits on the rate
+// limit took the time, so it is not scored.
+const waitedOut = "RateLimitWaits"
+
 // FromHarborJob reads every trial of a Harbor job directory and returns the
-// per-task results for one condition.
-func FromHarborJob(dir string) (map[string]*Result, error) {
+// per-task results for one condition. budgets are the agents' time budgets
+// by task id, in seconds: an agent's working time is its run less what its
+// requests waited on the model provider's rate limit (RateLimitFile), and an
+// agent that worked longer than its budget failed, as if timed out, while one
+// that Harbor timed out within its budget, because of the waits, is not
+// scored.
+func FromHarborJob(dir string, budgets map[string]float64) (map[string]*Result, error) {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return map[string]*Result{}, nil // the job never started: no trials
@@ -271,6 +322,7 @@ func FromHarborJob(dir string) (map[string]*Result, error) {
 	}
 	out := map[string]*Result{}
 	sums, coreSums := map[string]float64{}, map[string]float64{}
+	rl := readRateLimit(dir)
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -306,14 +358,32 @@ func FromHarborJob(dir string) (map[string]*Result, error) {
 				r.OutputTokens += *a.OutputTokens
 			}
 		}
-		if ex := tr.ExceptionInfo; ex != nil && notScored(ex.Type) {
+		wait := rl.Trials[e.Name()]
+		r.RateLimitWaitSeconds += wait.Seconds
+		r.RateLimitRefused += wait.Refused
+		working := -1.0
+		if a := tr.AgentExecution; a != nil && !a.StartedAt.IsZero() && !a.FinishedAt.IsZero() {
+			working = max(a.FinishedAt.Sub(a.StartedAt).Seconds()-wait.Seconds, 0)
+		}
+		budget := budgets[id]
+		exception := ""
+		if tr.ExceptionInfo != nil {
+			exception = tr.ExceptionInfo.Type
+		}
+		if exception == "AgentTimeoutError" && budget > 0 && working >= 0 && working < budget {
+			exception = waitedOut
+		}
+		if exception != "" && (notScored(exception) || exception == waitedOut) {
 			if r.Unscored == nil {
 				r.Unscored = map[string]int{}
 			}
-			r.Unscored[ex.Type]++
+			r.Unscored[exception]++
 			continue
 		}
 		r.Trials++
+		if working >= 0 {
+			r.AgentSeconds += working
+		}
 		reward, core := 0.0, 0.0
 		if tr.VerifierResult != nil {
 			reward = tr.VerifierResult.Rewards["reward"]
@@ -322,10 +392,14 @@ func FromHarborJob(dir string) (map[string]*Result, error) {
 				core = reward // a verifier from before the core reward
 			}
 		}
+		if budget > 0 && working > budget && exception == "" {
+			// Over its time budget: a timeout, whatever the verifier says.
+			reward, core, exception = 0, 0, overBudget
+		}
 		caught, total := mutantCounts(filepath.Join(dir, e.Name(), "verifier", "verify.json"))
 		r.MutantsCaught += caught
 		r.MutantsTotal += total
-		if tr.ExceptionInfo != nil {
+		if exception != "" {
 			r.Errors++
 		}
 		if reward >= 1 {
@@ -412,6 +486,17 @@ func (f *File) Markdown() string {
 		}
 		b.WriteString("\n")
 	}
+	if mins := f.agentMinutes(); len(mins) > 0 {
+		b.WriteString("| Agent minutes per trial | |")
+		for _, c := range f.Conditions {
+			if m, ok := mins[c]; ok {
+				fmt.Fprintf(&b, " %.1f |", m)
+			} else {
+				b.WriteString(" - |")
+			}
+		}
+		b.WriteString("\n")
+	}
 	for _, row := range []struct {
 		name   string
 		scores map[string]float64
@@ -429,6 +514,9 @@ func (f *File) Markdown() string {
 		}
 		b.WriteString("\n")
 	}
+	if wait, refused := f.rateLimitWaits(); wait > 0 || refused > 0 {
+		fmt.Fprintf(&b, "\nThe model provider's rate limit held the agents' requests for %.1f minutes in all (%d refused and sent again). Agent minutes and the time budget leave those waits out.\n", wait/60, refused)
+	}
 	if len(f.Skipped) > 0 {
 		b.WriteString("\nNot run:\n\n")
 		for _, s := range f.Skipped {
@@ -440,6 +528,37 @@ func (f *File) Markdown() string {
 		}
 	}
 	return b.String()
+}
+
+// agentMinutes is each condition's mean agent working time per scored
+// trial, in minutes (waits on the rate limit left out).
+func (f *File) agentMinutes() map[string]float64 {
+	out := map[string]float64{}
+	for _, c := range f.Conditions {
+		secs, n := 0.0, 0
+		for _, t := range f.Tasks {
+			if r := t.Results[c]; r != nil && r.Trials > 0 && r.AgentSeconds > 0 {
+				secs += r.AgentSeconds
+				n += r.Trials
+			}
+		}
+		if n > 0 {
+			out[c] = secs / float64(n) / 60
+		}
+	}
+	return out
+}
+
+// rateLimitWaits sums the run's waits on the rate limit: seconds, refusals.
+func (f *File) rateLimitWaits() (float64, int) {
+	secs, refused := 0.0, 0
+	for _, t := range f.Tasks {
+		for _, r := range t.Results {
+			secs += r.RateLimitWaitSeconds
+			refused += r.RateLimitRefused
+		}
+	}
+	return secs, refused
 }
 
 func cell(r *Result) string {

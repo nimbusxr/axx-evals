@@ -33,6 +33,8 @@ type Task struct {
 	// PlainDir is the task's version without axx (the plain condition):
 	// Dir/plain when it has an instruction.md, else empty.
 	PlainDir string
+	// AgentTimeoutSec is the agent's time budget ([agent] timeout_sec).
+	AgentTimeoutSec float64
 }
 
 // Meta is task.toml [metadata].
@@ -62,6 +64,9 @@ type taskFile struct {
 		Description string `toml:"description"`
 	} `toml:"task"`
 	Metadata Meta `toml:"metadata"`
+	Agent    struct {
+		TimeoutSec float64 `toml:"timeout_sec"`
+	} `toml:"agent"`
 }
 
 // LoadTask reads dir/task.toml.
@@ -74,7 +79,7 @@ func LoadTask(dir string) (*Task, error) {
 	if err := toml.Unmarshal(b, &tf); err != nil {
 		return nil, fmt.Errorf("%s/task.toml: %w", dir, err)
 	}
-	t := &Task{Name: tf.Task.Name, Description: tf.Task.Description, Dir: dir, Meta: tf.Metadata}
+	t := &Task{Name: tf.Task.Name, Description: tf.Task.Description, Dir: dir, Meta: tf.Metadata, AgentTimeoutSec: tf.Agent.TimeoutSec}
 	if _, err := os.Stat(filepath.Join(dir, "plain", "instruction.md")); err == nil {
 		t.PlainDir = filepath.Join(dir, "plain")
 	}

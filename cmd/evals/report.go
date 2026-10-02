@@ -100,8 +100,10 @@ func buildResults(evalsDir, agent, model, axxVersion, date string, conditions []
 		return nil, err
 	}
 	meta := map[string]*spec.Task{}
+	budgets := map[string]float64{}
 	for _, t := range tasks {
 		meta[t.ID()] = t
+		budgets[t.ID()] = t.AgentTimeoutSec
 	}
 	f := &results.File{
 		SchemaVersion: results.SchemaVersion, Kind: results.Kind, Date: date, Agent: agent, Model: model,
@@ -109,7 +111,7 @@ func buildResults(evalsDir, agent, model, axxVersion, date string, conditions []
 	}
 	byTask := map[string]*results.Task{}
 	for _, c := range conditions {
-		res, err := results.FromHarborJob(jobs[c])
+		res, err := results.FromHarborJob(jobs[c], budgets)
 		if err != nil {
 			return nil, fmt.Errorf("condition %s: %w", c, err)
 		}

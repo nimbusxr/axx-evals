@@ -262,6 +262,10 @@ func composeFile(t *spec.Task, images map[string]string) []byte {
 	var b strings.Builder
 	b.WriteString(generatedHeader)
 	b.WriteString("# Infrastructure next to the main container (Harbor defines main itself).\nservices:\n  main:\n")
+	// The agent reaches the model through the proxy `evals run` serves on the
+	// host (internal/ratelimit); Docker Desktop has this name already, Linux
+	// needs it mapped.
+	b.WriteString("    extra_hosts:\n      - host.docker.internal:host-gateway\n")
 	if t.HasService("kafka") {
 		b.WriteString("    environment:\n      PARCELS_KAFKA_BROKERS: kafka:9092\n")
 	}
