@@ -15,6 +15,7 @@ The tests are Gherkin features in `features/`, run with [axx](https://axx.nimbus
 | API | `http://localhost:8080`, health at `/health` |
 | OpenAPI 3.1 | `http://localhost:8080/openapi.json` (also `openapi.yaml` in this repository) |
 | Business rules | `docs/` (registration, manifest import, tracking, labels, events) |
+| Database | `docs/database.md`: the PostgreSQL tables and the MongoDB collections |
 
 ## Infrastructure
 
