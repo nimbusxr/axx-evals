@@ -61,6 +61,14 @@ type Result struct {
 	// Trials are the scored trials; Reward and Core are their means.
 	Trials int `json:"trials"`
 	Passed int `json:"passed"`
+	// CorePassed are the scored trials that passed every core check.
+	CorePassed int `json:"corePassed"`
+	// Work is what the agents of the scored trials did; Stumbles, the
+	// troubles they ran into with axx, by kind; Misses, every scored trial
+	// that did not get reward 1, and why.
+	Work     *Work              `json:"work,omitempty"`
+	Stumbles map[string]Stumble `json:"stumbles,omitempty"`
+	Misses   []Miss             `json:"misses,omitempty"`
 	// Errors are scored trials that ended in an exception of the agent's own
 	// (it timed out or its process failed); the verifier's reward counts.
 	Errors int `json:"errors,omitempty"`
@@ -436,6 +444,26 @@ func FromHarborJob(dir string, budgets map[string]float64) (map[string]*Result, 
 			// Over its time budget: a timeout, whatever the verifier says.
 			reward, core, exception = 0, 0, overBudget
 		}
+		in := analyzeTrial(filepath.Join(dir, e.Name()), wait.Requests)
+		if r.Work == nil {
+			r.Work = &Work{}
+		}
+		r.Work.add(in.work)
+		for k, n := range in.stumbles {
+			if r.Stumbles == nil {
+				r.Stumbles = map[string]Stumble{}
+			}
+			st := r.Stumbles[k]
+			st.Trials++
+			st.Times += n
+			r.Stumbles[k] = st
+		}
+		if core >= 1 {
+			r.CorePassed++
+		}
+		if reward < 1 {
+			r.Misses = append(r.Misses, missOf(e.Name(), exception, in.miss))
+		}
 		caught, total := mutantCounts(filepath.Join(dir, e.Name(), "verifier", "verify.json"))
 		r.MutantsCaught += caught
 		r.MutantsTotal += total
@@ -455,6 +483,24 @@ func FromHarborJob(dir string, budgets map[string]float64) (map[string]*Result, 
 		}
 	}
 	return out, nil
+}
+
+// missOf is why a scored trial missed: the exception that ended it, else the
+// first check the verifier failed.
+func missOf(trial, exception string, verified *Miss) Miss {
+	m := Miss{Trial: trial, Why: missOther, Core: true}
+	switch {
+	case exception == overBudget:
+		m.Why = missOverBudget
+	case exception == "AgentTimeoutError":
+		m.Why = missTimedOut
+	case exception != "" && verified == nil:
+		m.Why, m.Detail = missCrashed, exception
+	case verified != nil:
+		m = *verified
+		m.Trial = trial
+	}
+	return m
 }
 
 // mutantCounts reads the caught and total mutants from a verifier report
@@ -496,7 +542,7 @@ func (f *File) Markdown() string {
 	}
 	fmt.Fprintf(&b, ", %s\n\n", f.Date)
 	if f.Axx != "" || f.Harbor != "" {
-		fmt.Fprintf(&b, "axx %s, Harbor %s. A cell is the share of trials whose verifier gave reward 1; `err` counts scored trials that ended in an exception of the agent's own (a timeout, a crash); `not scored` counts trials cut off by the infrastructure or the model provider's rate limit, which the scores leave out.\n\n", orDash(f.Axx), orDash(f.Harbor))
+		fmt.Fprintf(&b, "axx %s, Harbor %s.\n\n", orDash(f.Axx), orDash(f.Harbor))
 	}
 	if other := f.OtherModels(); len(other) > 0 {
 		fmt.Fprintf(&b, "**Other models called:** the agents' requests went to models besides %s, so these trials are not that model's alone.\n\n", f.Model)
@@ -512,6 +558,8 @@ func (f *File) Markdown() string {
 		}
 		b.WriteString("\n")
 	}
+	f.withAndWithout(&b)
+	b.WriteString("## Scores by task\n\nA cell is the share of trials whose verifier gave reward 1; `err` counts scored trials that ended in an exception of the agent's own (a timeout, a crash); `not scored` counts trials cut off by the infrastructure or the model provider's rate limit, which the scores leave out.\n\n")
 	if len(f.CoreScores) > 0 {
 		b.WriteString("The **core score** holds every condition to the same checks: the tests pass against the correct service, twice, and against its correct variants (the same service as it may differ within its contract), and fail against every planted bug, with no cheating. The **score** adds what only an axx suite has (`axx validate`, the features' readability, `axx lint` where the task asks); without axx (`plain`) the two are the same.\n\n")
 	}
@@ -533,17 +581,6 @@ func (f *File) Markdown() string {
 		}
 		b.WriteString("\n")
 	}
-	if mins := f.agentMinutes(); len(mins) > 0 {
-		b.WriteString("| Agent minutes per trial | |")
-		for _, c := range f.Conditions {
-			if m, ok := mins[c]; ok {
-				fmt.Fprintf(&b, " %.1f |", m)
-			} else {
-				b.WriteString(" - |")
-			}
-		}
-		b.WriteString("\n")
-	}
 	for _, row := range []struct {
 		name   string
 		scores map[string]float64
@@ -561,8 +598,13 @@ func (f *File) Markdown() string {
 		}
 		b.WriteString("\n")
 	}
+	b.WriteString("\n")
+	f.axxOnlyMisses(&b)
+	f.howTheyWorked(&b)
+	f.stumbled(&b)
+	f.everyMiss(&b)
 	if wait, refused := f.rateLimitWaits(); wait > 0 || refused > 0 {
-		fmt.Fprintf(&b, "\nThe model provider's rate limit held the agents' requests for %.1f minutes in all (%d refused and sent again). Agent minutes and the time budget leave those waits out.\n", wait/60, refused)
+		fmt.Fprintf(&b, "The model provider's rate limit held the agents' requests for %.1f minutes in all (%d refused and sent again). Agent minutes and the time budget leave those waits out.\n", wait/60, refused)
 	}
 	if len(f.Skipped) > 0 {
 		b.WriteString("\nNot run:\n\n")
@@ -575,25 +617,6 @@ func (f *File) Markdown() string {
 		}
 	}
 	return b.String()
-}
-
-// agentMinutes is each condition's mean agent working time per scored
-// trial, in minutes (waits on the rate limit left out).
-func (f *File) agentMinutes() map[string]float64 {
-	out := map[string]float64{}
-	for _, c := range f.Conditions {
-		secs, n := 0.0, 0
-		for _, t := range f.Tasks {
-			if r := t.Results[c]; r != nil && r.Trials > 0 && r.AgentSeconds > 0 {
-				secs += r.AgentSeconds
-				n += r.Trials
-			}
-		}
-		if n > 0 {
-			out[c] = secs / float64(n) / 60
-		}
-	}
-	return out
 }
 
 // rateLimitWaits sums the run's waits on the rate limit: seconds, refusals.
