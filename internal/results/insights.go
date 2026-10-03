@@ -52,7 +52,8 @@ var stumbleKinds = []struct {
 	Name string
 	re   *regexp.Regexp
 }{
-	{"used a service before registering it", regexp.MustCompile(`No (?:database |MongoDB |Kafka )?services? set|(?:Service|Database service|MongoDB service) \\?"[^"\\]+\\?" not set`)},
+	// At runtime, or from validate and lint before it (AXX-E0836, since nimbusxr/axx#90).
+	{"used a service before registering it", regexp.MustCompile(`No (?:database |MongoDB |Kafka )?services? set|(?:Service|Database service|MongoDB service) \\?"[^"\\]+\\?" not set|AXX-E0836`)},
 	{"seed rejected by the database", regexp.MustCompile(`Could not perform (?:MongoDB )?seed`)},
 	// axx 0.1.9 explains it ("the request payload has no recipient, so
 	// recipient.name cannot be set inside it: … PathNotFoundException");
@@ -63,6 +64,8 @@ var stumbleKinds = []struct {
 	{"no step with that id", regexp.MustCompile(`no step (?:has the id|with id)`)},
 	{"axx command or flag that doesn't exist", regexp.MustCompile(`unknown (?:command|flag)[^\n]{0,60}for \\?"axx`)},
 	{"payload table value in single quotes", regexp.MustCompile(`AXX-E0834`)},
+	{"checked the first selection after a later one", regexp.MustCompile(`AXX-E0835`)},
+	{"lint rule that finds no values", regexp.MustCompile(`AXX-E0821`)},
 }
 
 // StumbleNames lists the stumble kinds in report order.
