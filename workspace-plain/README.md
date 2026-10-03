@@ -14,6 +14,7 @@ There are no acceptance tests yet.
 | API | `http://localhost:8080`, health at `/health` (200 once it is ready) |
 | OpenAPI 3.1 | `http://localhost:8080/openapi.json` (also `openapi.yaml` in this repository) |
 | Business rules | `docs/` (registration, manifest import, tracking, labels, events) |
+| Database | `docs/database.md`: the PostgreSQL tables and the MongoDB collections |
 
 ## Infrastructure
 
