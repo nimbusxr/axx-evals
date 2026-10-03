@@ -291,7 +291,13 @@ func (s *service) update(w http.ResponseWriter, r *http.Request) {
 		problem(w, r, http.StatusBadRequest, strings.Join(errs, "; "))
 		return
 	}
-	if p.Status != "REGISTERED" {
+	if p.Status != "REGISTERED" && !s.mut.On("change-after-pickup") {
+		if s.mut.On("refused-change-stored") {
+			if _, err := s.store.Update(r.Context(), p); err != nil {
+				s.fail(w, r, err)
+				return
+			}
+		}
 		problem(w, r, http.StatusConflict, fmt.Sprintf("parcel %s is %s and can no longer be changed", ref, p.Status))
 		return
 	}
@@ -310,13 +316,25 @@ func (s *service) update(w http.ResponseWriter, r *http.Request) {
 
 func (s *service) remove(w http.ResponseWriter, r *http.Request) {
 	ref := r.PathValue("reference")
-	if s.mut.On("delete-not-removed") {
-		if _, err := s.store.Get(r.Context(), ref); err == nil {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
+	p, err := s.store.Get(r.Context(), ref)
+	if errors.Is(err, errNotFound) {
+		problem(w, r, http.StatusNotFound, fmt.Sprintf("parcel %s not found", ref))
+		return
 	}
-	err := s.store.Delete(r.Context(), ref)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	// Once a depot has the parcel, it can no longer be cancelled.
+	if p.Status != "REGISTERED" && !s.mut.On("cancel-after-pickup") {
+		problem(w, r, http.StatusConflict, fmt.Sprintf("parcel %s is %s and can no longer be cancelled", ref, p.Status))
+		return
+	}
+	if s.mut.On("delete-not-removed") {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	err = s.store.Delete(r.Context(), ref)
 	if errors.Is(err, errNotFound) {
 		problem(w, r, http.StatusNotFound, fmt.Sprintf("parcel %s not found", ref))
 		return

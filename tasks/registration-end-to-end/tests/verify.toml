@@ -1,0 +1,5 @@
+# What the verifier checks for this task (see README.md, "How a task is verified").
+allowed = ["features/**", "seeds/**", "kafka/**", "schemas/**"]
+min_scenarios = 4
+mutants = ["wrong-status-on-create", "skips-address-check", "address-check-without-api-key", "ignores-undeliverable", "event-not-published", "event-weight-in-kilograms"]
+variants = ["json-properties-reordered", "events-topic-gzip"]

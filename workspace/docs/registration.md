@@ -33,4 +33,9 @@ Shops register parcels with `POST /api/parcels` (see `openapi.yaml`).
 - `PATCH /api/parcels/{reference}`: change `weightGrams`, `serviceLevel` or `recipient` (same
   rules as registration) while the parcel is `REGISTERED`; **200** with the changed parcel. The
   change is stored: a later `GET` shows it.
-- `DELETE /api/parcels/{reference}`: cancels the parcel, **204**. Afterwards `GET` answers **404**.
+- `DELETE /api/parcels/{reference}`: cancels the parcel while it is `REGISTERED`, **204**.
+  Afterwards `GET` answers **404**.
+- Once a depot picks the parcel up, the depots' system sets its `status` in `parcels.parcels` to
+  `PICKED_UP` (then `IN_TRANSIT`, `DELIVERED`). From then on the parcel can no longer be changed
+  or cancelled: `PATCH` and `DELETE` answer **409** with a problem detail, and the parcel stays as
+  it was.

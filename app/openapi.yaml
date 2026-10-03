@@ -125,11 +125,12 @@ paths:
         "409": {$ref: "#/components/responses/Problem"}
     delete:
       operationId: cancelParcel
-      summary: Cancel (delete) a parcel
+      summary: Cancel (delete) a parcel, while it is REGISTERED
       responses:
         "204":
           description: Cancelled.
         "404": {$ref: "#/components/responses/Problem"}
+        "409": {$ref: "#/components/responses/Problem"}
   /api/parcels/{reference}/tracking:
     parameters:
       - $ref: "#/components/parameters/Reference"
@@ -213,7 +214,7 @@ components:
         sender: {type: string}
         status:
           type: string
-          enum: [REGISTERED, IN_TRANSIT, DELIVERED]
+          enum: [REGISTERED, PICKED_UP, IN_TRANSIT, DELIVERED]
         weightGrams: {type: integer}
         serviceLevel: {type: string}
         recipient: {$ref: "#/components/schemas/Recipient"}

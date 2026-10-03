@@ -52,6 +52,8 @@ The ids are pinned (never an alias such as `~google/gemini-pro-latest`), so runs
 | `fix-broken-feature` | | repair a feature with a wrong step text and a wrong expectation, keeping its scenarios | `import-wrong-source`, `import-accepts-overweight` | `import-takes-seconds`, `json-properties-reordered` |
 | `init-first-feature` | rest | `axx init` a bare repository, make `axx run` start the service, write the first feature | `wrong-status-on-duplicate`, `wrong-status-on-create` | `json-properties-reordered` |
 | `parallel-unique-data` | rest | a shop's parcel list, correct under 16 workers in random order, plus an `axx lint` rule that bites | `list-ignores-sender-filter`, `delete-not-removed` | `json-properties-reordered` |
+| `registration-end-to-end` | rest, kafka | a registration followed through every service: the address check (once, with the API key), the stored parcel and its zone, the undeliverable refusal, the `ParcelRegistered` event | `wrong-status-on-create`, `skips-address-check`, `address-check-without-api-key`, `ignores-undeliverable`, `event-not-published`, `event-weight-in-kilograms` | `json-properties-reordered`, `events-topic-gzip` |
+| `change-rules` | rest | no change or cancellation once a depot picked the parcel up (a status only the database holds, so the tests seed it), the refused change not stored, a registered parcel still changeable | `change-after-pickup`, `refused-change-stored`, `cancel-after-pickup`, `update-not-persisted` | `json-properties-reordered` |
 
 The correct variants (`internal/mutant`) differ from the default service only where the docs and
 the contract leave room, the way real services do:
@@ -370,7 +372,24 @@ go run ./cmd/evals compare results/baseline-openai-gpt-6-luna.json results/ci-op
 It scores both files over the tasks they have in common (so adding or skipping tasks does not
 move the score), prints the per-condition change and the tasks that flipped, and exits 1 when any
 condition dropped by more than `--max-drop` points (default 10). The `evals` workflow applies it
-when the model has a baseline. Gating axx's own releases on it is planned, not wired up yet.
+when the model has a baseline; `results/baseline-openai-gpt-6-luna.json` is the 0.1.12 run.
+
+**The release gate:** axx's `release-gate` workflow runs the evals on release-please's pull
+request before a release is published. It starts this repository's `evals` workflow with GPT-6
+Luna and `axx_ref` set to the pull request's commit, so the images build axx from that commit
+(`AXX_REF`, `images/base/Dockerfile`) rather than install a release, and it fails when the gate
+does. It needs `AXX_EVALS_TOKEN` in axx, a token that may start workflows here; without it the
+gate is off and says so.
+
+**The results page:** axx's docs publish the latest results at
+[Agent evaluations](https://axx.nimbusxr.us/explanations/agent-evals/), written from the result
+files, one per model:
+
+```sh
+go run ./cmd/evals page -out ../axx/docs/src/content/docs/explanations/agent-evals.md \
+  -link openrouter/openai/gpt-6-luna=https://github.com/nimbusxr/axx-evals/actions/runs/<run> \
+  results/ci-openai-gpt-6-luna.json
+```
 Agents are nondeterministic: use `--attempts 3` for gate runs so a single unlucky trial does not
 move a task by a full 100 points.
 
@@ -389,7 +408,8 @@ Two workflows:
   reaches the rate-limit proxy, and that every answer in `testdata/negative/` gets 0. Nothing
   costs money.
 - **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks
-  and attempts), from `main` only, never on pull requests. It runs OpenCode, one job per
+  and attempts, and optionally `axx_ref`, an axx commit to test instead of the release), from
+  `main` only, never on pull requests. It runs OpenCode, one job per
   condition, all at once on their own runners, two trials at a time in each, with the
   rate-limit proxy pacing the model requests (see "Rate limits" above), then a
   report job merges them into `results/ci-<model>.json` and `.md`, adds the table to the run
