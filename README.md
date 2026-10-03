@@ -305,11 +305,14 @@ from the trials (their results, transcripts, verifier reports and the files the 
 
 - **With axx and without**: on the tasks `plain` ran, how many suites passed every core check
   under each condition, how the others failed (against the correct service, a correct variant,
-  a missed bug), the lines the agents wrote per suite, their minutes and cost.
+  a missed bug), the lines the agents wrote per suite, their minutes, the model requests they
+  spent learning axx (reading its steps, docs, skills or help), the cost per trial, and the cost
+  per passing suite (every trial's cost over the suites that passed every core check).
 - **Scores by task**: the task x condition table, the core score and the score, and the suites
   that passed every core check but missed an axx-only one, where the agent aids show.
 - **How the agents worked**: per trial, tool calls, model requests, axx commands, axx MCP tool
-  calls, skills loaded, web pages fetched, agent minutes, input tokens, lines written and cost.
+  calls, skills loaded, web pages fetched, the requests and tokens spent learning axx, agent
+  minutes, input tokens, lines written and cost.
 - **Where the agents stumbled**: troubles in the output of the agents' axx commands and MCP tools
   (a service used before it was registered, a seed the database rejected, a property set inside
   an object the payload lacks, requests numbered out of order, undefined step text, unknown step
@@ -326,7 +329,7 @@ from the trials (their results, transcripts, verifier reports and the files the 
   "date": "2026-10-02",
   "agent": "opencode",
   "model": "openrouter/openai/gpt-6-luna",
-  "axx": "0.1.11",
+  "axx": "0.1.12",
   "harbor": "0.23.0",
   "conditions": ["none", "skills", "mcp", "both", "plain"],
   "tasks": [
@@ -336,7 +339,7 @@ from the trials (their results, transcripts, verifier reports and the files the 
        "mutantsCaught": 9, "mutantsTotal": 9,
        "agentSeconds": 238.6, "rateLimitWaitSeconds": 412.0, "rateLimitRefused": 7,
        "models": {"openai/gpt-6-luna": 71}, "costUsd": 0.0389, "inputTokens": 1536000, "outputTokens": 9640,
-       "work": {"toolCalls": 156, "modelRequests": 71, "axxCommands": 87, "mcpCalls": 0, "skillsLoaded": 0, "docsFetched": 4, "lines": [59, 55, 61]},
+       "work": {"toolCalls": 156, "modelRequests": 71, "axxCommands": 87, "mcpCalls": 0, "skillsLoaded": 0, "docsFetched": 4, "lines": [59, 55, 61], "learnRequests": 15, "learnTokens": 54000},
        "stumbles": {"used a service before registering it": {"trials": 1, "times": 3}},
        "misses": [{"trial": "rest-crud-happy-path__8BLohbN", "why": "fewer scenarios than the task has criteria", "core": false,
                    "detail": "at least 3 passing scenarios: 1 passed"}]}}}
@@ -352,7 +355,8 @@ Per task and condition: `trials` are the scored trials, `passed` those with rewa
 agent's own exception, `unscored` (by exception type) those left out. `agentSeconds` is the
 agents' working time, the rate limit's waits (`rateLimitWaitSeconds`, `rateLimitRefused`) left out;
 `models` counts the model requests by model. `work` is what the agents did (`lines`: the lines of
-the files each trial added or changed), `stumbles` the troubles in axx's output by kind, and
+the files each trial added or changed; `learnRequests` and `learnTokens`: the model requests spent
+learning axx and the tokens they read), `stumbles` the troubles in axx's output by kind, and
 `misses` every scored trial without reward 1 and the first check it failed.
 
 The **baseline** is a result file promoted as-is, one per model: `results/baseline-<model>.json`,

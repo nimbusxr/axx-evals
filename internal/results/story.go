@@ -217,6 +217,10 @@ func (f *File) withAndWithout(b *strings.Builder) {
 		v, ok := st[c].perTrial(st[c].agentSeconds / 60)
 		return num(v, ok, "%.1f")
 	})
+	row(b, "Requests learning axx per trial", f.Conditions, func(c string) string {
+		v, ok := st[c].perTrial(float64(st[c].work.LearnRequests))
+		return num(v, ok, "%.1f")
+	})
 	row(b, "Cost per trial (¢)", f.Conditions, func(c string) string {
 		s := st[c]
 		n := s.trials + s.unscored
@@ -225,7 +229,14 @@ func (f *File) withAndWithout(b *strings.Builder) {
 		}
 		return fmt.Sprintf("%.2f", s.costUSD*100/float64(n))
 	})
-	b.WriteString("\nLines written are the lines of the files the agent added or changed: features and seeds with axx, test code and scripts without. Every failed suite is listed under \"Every miss\" below.\n\n")
+	row(b, "**Cost per passing suite (¢)**", f.Conditions, func(c string) string {
+		s := st[c]
+		if s.corePassed == 0 {
+			return "-"
+		}
+		return fmt.Sprintf("**%.2f**", s.costUSD*100/float64(s.corePassed))
+	})
+	b.WriteString("\nLines written are the lines of the files the agent added or changed: features and seeds with axx, test code and scripts without. Requests learning axx are those whose tool calls mostly read its steps, docs, skills or help. The cost per passing suite is what every trial cost, divided by the suites that passed every core check. Every failed suite is listed under \"Every miss\" below.\n\n")
 }
 
 // howTheyWorked is what the agents did per scored trial, over every task.
@@ -251,6 +262,8 @@ func (f *File) howTheyWorked(b *strings.Builder) {
 		{"axx MCP tool calls", func(s condStats) float64 { return float64(s.work.MCPCalls) }},
 		{"Skills loaded", func(s condStats) float64 { return float64(s.work.SkillsLoaded) }},
 		{"Web pages fetched (docs)", func(s condStats) float64 { return float64(s.work.DocsFetched) }},
+		{"Requests learning axx", func(s condStats) float64 { return float64(s.work.LearnRequests) }},
+		{"Tokens read learning axx (thousands)", func(s condStats) float64 { return float64(s.work.LearnTokens) / 1000 }},
 		{"Agent minutes", func(s condStats) float64 { return s.agentSeconds / 60 }},
 		{"Input tokens (thousands)", func(s condStats) float64 { return float64(s.inputTokens) / 1000 }},
 	} {
