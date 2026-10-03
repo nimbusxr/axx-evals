@@ -104,3 +104,25 @@ func TestAllowsFixtureFactoryFiles(t *testing.T) {
 		}
 	}
 }
+
+// The init task forbids only changing README.md, openapi.yaml and the docs,
+// as its instruction says: request payloads may live wherever the agent
+// keeps them.
+func TestInitTaskAllowsWhatItsInstructionAllows(t *testing.T) {
+	v, err := LoadVerify(filepath.Join("..", "..", "tasks", "init-first-feature", "tests", "verify.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for p, want := range map[string]bool{
+		"axx.yaml":                       true,
+		"features/register.feature":      true,
+		"resources/parcel-register.json": true,
+		"README.md":                      false,
+		"openapi.yaml":                   false,
+		"docs/registration.md":           false,
+	} {
+		if got := v.AllowsPath(p); got != want {
+			t.Errorf("AllowsPath(%q) = %v, want %v", p, got, want)
+		}
+	}
+}

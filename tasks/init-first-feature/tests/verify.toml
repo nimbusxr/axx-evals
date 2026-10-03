@@ -1,7 +1,12 @@
 # What the verifier checks for this task (see README.md, "How a task is verified").
 # The first run is a plain `axx run`: axx must start the service from the agent's axx.yaml.
-# axx init also writes axx-packs.yaml and .gitattributes.
-allowed = ["axx.yaml", "axx.*.yaml", "axx-packs.yaml", "axx-packs.lock", ".gitattributes", "features/**", "seeds/**", ".github/**"]
+# The task forbids only changing README.md, openapi.yaml and the docs: the agent
+# sets the repository up as it sees fit (axx init's files, features, seeds,
+# request payloads wherever it keeps them). An agent that kept its payloads in
+# resources/ failed an allowed list of axx.yaml, features/ and seeds/ that the
+# task never stated.
+allowed = ["**"]
+protected = ["README.md", "openapi.yaml", "docs/**"]
 required = ["axx.yaml", "features/**/*.feature"]
 config_keys = ["*"]
 start_apps = true

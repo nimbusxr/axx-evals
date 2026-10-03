@@ -313,7 +313,8 @@ from the trials (their results, transcripts, verifier reports and the files the 
 - **Where the agents stumbled**: troubles in the output of the agents' axx commands and MCP tools
   (a service used before it was registered, a seed the database rejected, a property set inside
   an object the payload lacks, requests numbered out of order, undefined step text, unknown step
-  ids, unknown commands, payload table values in single quotes), in trials and in the outputs
+  ids, unknown commands, payload table values in single quotes, a step checking the first
+  selection after a later one, a lint rule that finds no values), in trials and in the outputs
   that showed them.
 - **Every miss**: each scored trial that did not get reward 1, with the first check it failed.
 - Run health: trials not scored, other models called, the rate limit's waits.
@@ -325,7 +326,7 @@ from the trials (their results, transcripts, verifier reports and the files the 
   "date": "2026-10-02",
   "agent": "opencode",
   "model": "openrouter/openai/gpt-6-luna",
-  "axx": "0.1.10",
+  "axx": "0.1.11",
   "harbor": "0.23.0",
   "conditions": ["none", "skills", "mcp", "both", "plain"],
   "tasks": [
