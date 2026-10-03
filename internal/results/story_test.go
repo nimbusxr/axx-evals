@@ -47,7 +47,7 @@ func TestAnalyzeTrial(t *testing.T) {
 		t.Errorf("lines = %v", w.Lines)
 	}
 	// Only axx's own output counts: the echo is not an axx command.
-	if in.stumbles["used a service before registering it"] != 1 || in.stumbles["seed rejected by the database"] != 1 || in.stumbles["bare PathNotFoundException"] != 0 {
+	if in.stumbles["used a service before registering it"] != 1 || in.stumbles["seed rejected by the database"] != 1 || in.stumbles["set a property inside an object the payload lacks"] != 0 {
 		t.Errorf("stumbles = %v", in.stumbles)
 	}
 	if m := in.miss; m == nil || m.Why != missMissedBug || !m.Core {

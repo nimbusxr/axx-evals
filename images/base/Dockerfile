@@ -67,14 +67,16 @@ RUN git config --system user.name "Parcels team" \
 # One cache for every user (the agent, and the verifier's tester), so the packs
 # prepared here serve them all.
 ENV XDG_CACHE_HOME=/var/cache/evals
-COPY workspace /opt/evals/workspace
 # Prepare the packs of the starting projects: the common one's, and those of
-# `axx init`, for the tasks that start from nothing.
+# `axx init`, for the tasks that start from nothing. Only the project's axx
+# files come first, so a change to the rest of it keeps this slow layer.
+COPY workspace/axx.yaml workspace/axx-packs.yaml /opt/evals/workspace/
 RUN set -eu; \
     mkdir -p "$XDG_CACHE_HOME"; \
     (cd /opt/evals/workspace && axx steps --json >/dev/null); \
     scratch=$(mktemp -d); (cd "$scratch" && axx init --no-ci --no-agents >/dev/null && axx steps --json >/dev/null); rm -rf "$scratch"; \
     chmod -R a+rwX "$XDG_CACHE_HOME"
+COPY workspace /opt/evals/workspace
 COPY workspace-plain /opt/evals/workspace-plain
 COPY images/base/bin/ /usr/local/bin/
 WORKDIR /app
