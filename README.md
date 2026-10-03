@@ -297,9 +297,25 @@ broken one.
 
 ## Results and the release gate
 
-`results/<date>-<agent>.json` (schema below) and a Markdown table (task x condition) are written
-after every run. A condition's **score** is the mean reward over the tasks that ran, in percent,
-and its **core score** the mean core reward: the one to compare conditions on, `plain` included.
+`results/<date>-<agent>.json` (schema below) and a Markdown report are written after every run
+(in CI, the report is the run's summary). A condition's **score** is the mean reward over the
+tasks that ran, in percent, and its **core score** the mean core reward: the one to compare
+conditions on, `plain` included. The report is meant to be read on its own; everything in it comes
+from the trials (their results, transcripts, verifier reports and the files the agents wrote):
+
+- **With axx and without**: on the tasks `plain` ran, how many suites passed every core check
+  under each condition, how the others failed (against the correct service, a correct variant,
+  a missed bug), the lines the agents wrote per suite, their minutes and cost.
+- **Scores by task**: the task x condition table, the core score and the score, and the suites
+  that passed every core check but missed an axx-only one, where the agent aids show.
+- **How the agents worked**: per trial, tool calls, model requests, axx commands, axx MCP tool
+  calls, skills loaded, web pages fetched, agent minutes, input tokens, lines written and cost.
+- **Where the agents stumbled**: troubles in the output of the agents' axx commands and MCP tools
+  (a service used before it was registered, a seed the database rejected, a bare
+  `PathNotFoundException`, requests numbered out of order, undefined step text, unknown step
+  ids, unknown commands), in trials and times.
+- **Every miss**: each scored trial that did not get reward 1, with the first check it failed.
+- Run health: trials not scored, other models called, the rate limit's waits.
 
 ```json
 {
