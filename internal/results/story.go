@@ -309,7 +309,7 @@ func (f *File) stumbled(b *strings.Builder) {
 	if !any {
 		return
 	}
-	b.WriteString("## Where the agents stumbled\n\nTroubles in the output of the agents' axx commands and MCP tools: the trials they happened in, and how often.\n\n")
+	b.WriteString("## Where the agents stumbled\n\nTroubles in the output of the agents' axx commands and MCP tools: the trials they happened in, and the outputs that showed them (an output that names one several times counts once).\n\n")
 	header(b, "Trials · times", conds)
 	for _, name := range StumbleNames() {
 		seen := false

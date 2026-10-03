@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nimbusxr/axx-evals/internal/results"
+	"github.com/nimbusxr/axx-evals/internal/spec"
 )
 
 type multiFlag []string
@@ -49,6 +50,7 @@ func cmdRun(args []string) error {
 	smallModel := fs.String("small-model", "", "OpenCode's small model (session titles and other side tasks): default the model under test; auto leaves OpenCode's choice")
 	condList := fs.String("conditions", "none,skills,mcp,both,plain", "conditions from conditions.toml")
 	only := fs.String("tasks", "", "comma-separated task ids (default: all)")
+	shard := fs.String("shard", "", "run one part of the tasks, i/n: the tasks whose place in name order is i modulo n (CI splits a run across jobs this way)")
 	attempts := fs.Int("attempts", 1, "trials per task and condition (harbor -k)")
 	concurrency := fs.Int("concurrency", 2, "concurrent trials (harbor -n); each trial runs its own databases")
 	pending := fs.Bool("include-pending", false, "also run tasks whose required packs are missing")
@@ -72,6 +74,12 @@ func cmdRun(args []string) error {
 	conds, err := loadConditions(dir)
 	if err != nil {
 		return err
+	}
+	tasks := splitList(*only)
+	if *shard != "" {
+		if tasks, err = shardTasks(dir, *shard, tasks); err != nil {
+			return exitError{2, err.Error()}
+		}
 	}
 	names := splitList(*condList)
 	for _, n := range names {
@@ -122,7 +130,7 @@ func cmdRun(args []string) error {
 	for _, n := range names {
 		c := conds[n]
 		dataset := filepath.Join(dir, ".work", "datasets", runID, n)
-		_, sk, err := prepareDataset(dir, c, dataset, splitList(*only), packs, *pending)
+		_, sk, err := prepareDataset(dir, c, dataset, tasks, packs, *pending)
 		if err != nil {
 			return err
 		}
@@ -257,4 +265,32 @@ func writeResults(f *results.File, out string) error {
 	fmt.Print(f.Markdown())
 	fmt.Printf("\nwrote %s.json and %s.md\n", out, out)
 	return nil
+}
+
+// shardTasks is part i of n of the tasks (of only, when it names some): those
+// whose place in name order is i modulo n, so the parts cover every task,
+// new ones too, and each once.
+func shardTasks(dir, shard string, only []string) ([]string, error) {
+	var i, n int
+	if _, err := fmt.Sscanf(shard, "%d/%d", &i, &n); err != nil || n < 1 || i < 1 || i > n {
+		return nil, fmt.Errorf("--shard %q: want i/n with 1 <= i <= n, like 2/4", shard)
+	}
+	all, err := spec.LoadTasks(filepath.Join(dir, "tasks"))
+	if err != nil {
+		return nil, err
+	}
+	want := map[string]bool{}
+	for _, id := range only {
+		want[id] = true
+	}
+	var out []string
+	for k, t := range all {
+		if k%n == i-1 && (len(want) == 0 || want[t.ID()]) {
+			out = append(out, t.ID())
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("--shard %s has no tasks", shard)
+	}
+	return out, nil
 }

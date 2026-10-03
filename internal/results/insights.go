@@ -38,7 +38,8 @@ func (w *Work) add(o Work) {
 }
 
 // Stumble counts one kind of trouble the agents ran into with axx: the
-// trials it happened in and how often.
+// trials it happened in, and the outputs of axx commands and MCP tools that
+// showed it (one output that names it in several places counts once).
 type Stumble struct {
 	Trials int `json:"trials"`
 	Times  int `json:"times"`
@@ -53,11 +54,15 @@ var stumbleKinds = []struct {
 }{
 	{"used a service before registering it", regexp.MustCompile(`No (?:database |MongoDB |Kafka )?services? set|(?:Service|Database service|MongoDB service) \\?"[^"\\]+\\?" not set`)},
 	{"seed rejected by the database", regexp.MustCompile(`Could not perform (?:MongoDB )?seed`)},
-	{"bare PathNotFoundException", regexp.MustCompile(`PathNotFoundException`)},
+	// axx 0.1.9 explains it ("the request payload has no recipient, so
+	// recipient.name cannot be set inside it: … PathNotFoundException");
+	// before, the bare exception was all.
+	{"set a property inside an object the payload lacks", regexp.MustCompile(`PathNotFoundException`)},
 	{"numbered requests (1st, 2nd …) out of order", regexp.MustCompile(`request of service \S+, (?:but only|which an earlier step)`)},
 	{"undefined step text", regexp.MustCompile(`undefined step`)},
 	{"no step with that id", regexp.MustCompile(`no step (?:has the id|with id)`)},
 	{"axx command or flag that doesn't exist", regexp.MustCompile(`unknown (?:command|flag)[^\n]{0,60}for \\?"axx`)},
+	{"payload table value in single quotes", regexp.MustCompile(`AXX-E0834`)},
 }
 
 // StumbleNames lists the stumble kinds in report order.
@@ -213,8 +218,8 @@ func analyzeTrial(dir string, requests int) trialInsight {
 					}
 					out := outputs[tc.ID]
 					for _, k := range stumbleKinds {
-						if n := len(k.re.FindAllStringIndex(out, -1)); n > 0 {
-							in.stumbles[k.Name] += n
+						if k.re.MatchString(out) {
+							in.stumbles[k.Name]++
 						}
 					}
 				}

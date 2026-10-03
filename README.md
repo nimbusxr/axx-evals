@@ -141,9 +141,9 @@ the same provider; through OpenRouter that was `google/gemini-3.8-flash`, once p
 first runs. `run` sets OpenCode's `small_model` to the model under test (`--small-model` names
 another; `auto` leaves OpenCode's choice). The proxy counts each trial's requests by model, and
 a run whose agents called any other model says so in its report and exits 1. Useful flags:
-`--tasks a,b`, `--conditions none,both`, `--attempts 3` (Harbor's `-k`), `--concurrency 4` (each
-trial runs its own databases, so budget about 4 GB of memory per concurrent trial),
-`--skip-images`, `--dry-run` (print the Harbor commands), `--include-pending` (run tasks whose
+`--tasks a,b`, `--shard 2/4` (a quarter of the tasks, by their place in name order),
+`--conditions none,both`, `--attempts 3` (Harbor's `-k`), `--concurrency 4` (each trial runs its
+own databases, so budget about 4 GB of memory per concurrent trial), `--skip-images`, `--dry-run` (print the Harbor commands), `--include-pending` (run tasks whose
 packs are missing), `--expect-reward`. Agent options pass through with `--ak key=value`; for
 OpenCode, `version=` pins its release (the workflow's `OPENCODE_VERSION`). Any other Harbor agent
 works with `--agent` too, but the results are only comparable with the same agent.
@@ -311,9 +311,10 @@ from the trials (their results, transcripts, verifier reports and the files the 
 - **How the agents worked**: per trial, tool calls, model requests, axx commands, axx MCP tool
   calls, skills loaded, web pages fetched, agent minutes, input tokens, lines written and cost.
 - **Where the agents stumbled**: troubles in the output of the agents' axx commands and MCP tools
-  (a service used before it was registered, a seed the database rejected, a bare
-  `PathNotFoundException`, requests numbered out of order, undefined step text, unknown step
-  ids, unknown commands), in trials and times.
+  (a service used before it was registered, a seed the database rejected, a property set inside
+  an object the payload lacks, requests numbered out of order, undefined step text, unknown step
+  ids, unknown commands, payload table values in single quotes), in trials and in the outputs
+  that showed them.
 - **Every miss**: each scored trial that did not get reward 1, with the first check it failed.
 - Run health: trials not scored, other models called, the rate limit's waits.
 
@@ -374,11 +375,14 @@ Two workflows:
 
 - **`check`** runs on every pull request and push to `main`, with no secrets and no model: the Go
   tests (including the generated task files being up to date), actionlint and zizmor on the
-  workflows, and the plumbing through Harbor. The oracle agent must get reward 1 on every task,
-  with axx and without (`none` and `plain`), the nop agent 0. Every task's environment must build
-  under every aid condition, and the oracle get 1 again under each on `rest-crud-happy-path` and
-  `init-first-feature` (the shared starting project and a bare one); every answer in
-  `testdata/negative/` must get 0. Nothing costs money.
+  workflows, and the plumbing through Harbor, split across five jobs that run at once and a
+  `plumbing` job that passes when they all do. Four take a quarter of the tasks each
+  (`--shard`): the oracle agent must get reward 1 on every task, with axx and without (`none` and
+  `plain`), the nop agent 0. The fifth builds every task's environment under every aid
+  condition, runs the oracle again under each on `rest-crud-happy-path` and
+  `init-first-feature` (the shared starting project and a bare one), checks that a container
+  reaches the rate-limit proxy, and that every answer in `testdata/negative/` gets 0. Nothing
+  costs money.
 - **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks
   and attempts), from `main` only, never on pull requests. It runs OpenCode, one job per
   condition, all at once on their own runners, two trials at a time in each, with the

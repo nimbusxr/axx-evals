@@ -1,7 +1,7 @@
 name: check
 
 # Everything but a model, on every pull request and push to main: the Go tests,
-# the workflows' lint, and the plumbing run through Harbor. The oracle agent applies
+# the workflows' lint, and the plumbing run through Harbor, in parallel jobs. The oracle agent applies
 # each task's reference solution, with axx and without (every trial must get reward
 # 1), the nop agent does nothing (every trial must get 0). No secrets, no model, no
 # cost.
@@ -64,10 +64,30 @@ jobs:
       - name: zizmor
         run: uvx zizmor@1.30.1 --min-severity medium .github/workflows
 
-  plumbing:
-    needs: test
+  # The plumbing run, split across parallel jobs: each builds the images, the four task
+  # parts run the oracle and nop agents on a quarter of the tasks each (`--shard`, so a new
+  # task joins one by itself), and the aids part checks the conditions' starting projects,
+  # the rate-limit proxy and the negative answers.
+  plumbing-part:
+    name: plumbing (${{ matrix.part }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: tasks 1/4
+            shard: 1/4
+          - part: tasks 2/4
+            shard: 2/4
+          - part: tasks 3/4
+            shard: 3/4
+          - part: tasks 4/4
+            shard: 4/4
+          - part: aids
+            shard: ""
+    env:
+      SHARD: ${{ matrix.shard }}
     steps:
       # The images, their sidecars and the trials' containers need more disk than
       # a runner has free.
@@ -93,10 +113,18 @@ jobs:
           df -h /
       - name: Build the images
         run: go run ./cmd/evals images
+      # none: every task with axx; plain: the versions without axx.
+      - name: Every reference solution passes (oracle)
+        if: matrix.shard != ''
+        run: go run ./cmd/evals run --agent oracle --conditions none,plain --shard "$SHARD" --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle
+      - name: Doing nothing fails (nop)
+        if: matrix.shard != ''
+        run: go run ./cmd/evals run --agent nop --conditions none,plain --shard "$SHARD" --skip-images --concurrency 2 --expect-reward 0 --out results/ci-nop
       # A model run sends the agents' requests through the rate-limit proxy on the host
       # (README.md, "Rate limits"): a container reaches it as the agents do, and through it
       # OpenRouter's public list of models (no key, no cost).
       - name: The agents reach the rate-limit proxy
+        if: matrix.part == 'aids'
         run: |
           gateway=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')
           go build -o "$RUNNER_TEMP/evals" ./cmd/evals
@@ -108,15 +136,11 @@ jobs:
           kill -INT "$proxy"
           echo "through the proxy: HTTP $code"
           [[ "$code" == 200 ]]
-      # none: every task with axx; plain: the versions without axx.
-      - name: Every reference solution passes (oracle)
-        run: go run ./cmd/evals run --agent oracle --conditions none,plain --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle
-      - name: Doing nothing fails (nop)
-        run: go run ./cmd/evals run --agent nop --conditions none,plain --skip-images --concurrency 2 --expect-reward 0 --out results/ci-nop
       # The conditions change only the starting project, so every task's must build under
       # each; the oracle then passes under each on a task of each kind of starting project
       # (the shared one, and a bare repository before `axx init`).
       - name: Every task's environment builds under every condition
+        if: matrix.part == 'aids'
         run: |
           for c in skills mcp both; do
             go run ./cmd/evals prepare --condition "$c" --out ".work/aids/$c"
@@ -126,9 +150,11 @@ jobs:
             done
           done
       - name: The agent aids work (oracle, every condition)
+        if: matrix.part == 'aids'
         run: go run ./cmd/evals run --agent oracle --conditions skills,mcp,both --tasks rest-crud-happy-path,init-first-feature --skip-images --concurrency 2 --expect-reward 1 --out results/ci-oracle-conditions
       # Weak or cheating answers (testdata/negative/README.md) must not earn a reward.
       - name: The negative answers fail
+        if: matrix.part == 'aids'
         run: |
           go run ./cmd/evals check --patch testdata/negative/weak-assertions rest-crud-happy-path
           go run ./cmd/evals check --patch testdata/negative/captured-variable sql-manifest-import
@@ -138,13 +164,33 @@ jobs:
           for f in results/ci-oracle.md results/ci-nop.md results/ci-oracle-conditions.md; do
             if [[ -f "$f" ]]; then cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
           done
+      - name: Name the artifact
+        if: failure()
+        id: artifact
+        run: echo "name=plumbing-jobs-${PART//[^a-z0-9]/-}" >> "$GITHUB_OUTPUT"
+        env:
+          PART: ${{ matrix.part }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: failure()
         with:
-          name: plumbing-jobs
+          name: ${{ steps.artifact.outputs.name }}
           path: |
             results/ci-*
             .work/jobs/
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 7
+
+  # The check the main branch's rules require: every part passed.
+  plumbing:
+    if: always()
+    needs: plumbing-part
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every part passed
+        env:
+          RESULT: ${{ needs.plumbing-part.result }}
+        run: |
+          echo "the plumbing parts: $RESULT"
+          [[ "$RESULT" == success ]]
