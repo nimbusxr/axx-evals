@@ -326,7 +326,7 @@ from the trials (their results, transcripts, verifier reports and the files the 
   "date": "2026-10-02",
   "agent": "opencode",
   "model": "openrouter/openai/gpt-6-luna",
-  "axx": "0.1.10",
+  "axx": "0.1.11",
   "harbor": "0.23.0",
   "conditions": ["none", "skills", "mcp", "both", "plain"],
   "tasks": [
