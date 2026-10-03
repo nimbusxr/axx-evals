@@ -25,6 +25,12 @@ type Work struct {
 	// Lines are the lines of the files the agent added or changed, per trial
 	// (the verifier's list of changes), in trial order.
 	Lines []int `json:"lines,omitempty"`
+	// LearnRequests are the model requests the agent spent learning axx
+	// (most of their tool calls read steps, docs, skills or help), and
+	// LearnTokens the tokens of what those calls returned (4 characters a
+	// token): the cost of axx that writing tests without it does not have.
+	LearnRequests int `json:"learnRequests,omitempty"`
+	LearnTokens   int `json:"learnTokens,omitempty"`
 }
 
 func (w *Work) add(o Work) {
@@ -35,6 +41,8 @@ func (w *Work) add(o Work) {
 	w.SkillsLoaded += o.SkillsLoaded
 	w.DocsFetched += o.DocsFetched
 	w.Lines = append(w.Lines, o.Lines...)
+	w.LearnRequests += o.LearnRequests
+	w.LearnTokens += o.LearnTokens
 }
 
 // Stumble counts one kind of trouble the agents ran into with axx: the
@@ -177,6 +185,32 @@ type trajectory struct {
 
 var axxCommand = regexp.MustCompile(`(^|[\s;&|(])axx(\s|$)`)
 
+// learnCommand is an axx command that tells about axx rather than doing the
+// task: the steps, the help, the schema, the packs, the setup.
+var learnCommand = regexp.MustCompile(`(^|[\s;&|(])axx\s+(steps|explain|schema|doctor|pack|docs|config|help|version|--help|-h)\b`)
+
+// learning reports whether a tool call is the agent learning axx: reading
+// its steps, docs, skills or help.
+func learning(fn string, args json.RawMessage) bool {
+	var a struct {
+		Command  string `json:"command"`
+		URL      string `json:"url"`
+		FilePath string `json:"filePath"`
+	}
+	_ = json.Unmarshal(args, &a)
+	switch fn {
+	case "axx_steps_search", "axx_step_explain", "axx_config_show", "axx_scaffold", "skill":
+		return true
+	case "webfetch":
+		return strings.Contains(a.URL, "axx.nimbusxr.us")
+	case "read":
+		return strings.Contains(a.FilePath, "/skills/axx-")
+	case "bash":
+		return learnCommand.MatchString(a.Command)
+	}
+	return false
+}
+
 // analyzeTrial reads a trial's transcript, its verifier report and the files
 // it wrote. requests is the proxy's count of its model requests (0: count the
 // agent's turns in the transcript).
@@ -195,6 +229,16 @@ func analyzeTrial(dir string, requests int) trialInsight {
 					for _, r := range s.Observation.Results {
 						outputs[r.CallID] = string(r.Content)
 					}
+				}
+				learned := 0
+				for _, tc := range s.ToolCalls {
+					if learning(tc.Function, tc.Arguments) {
+						learned++
+						in.work.LearnTokens += len(outputs[tc.ID]) / 4
+					}
+				}
+				if learned > 0 && learned*2 >= len(s.ToolCalls) {
+					in.work.LearnRequests++
 				}
 				for _, tc := range s.ToolCalls {
 					in.work.ToolCalls++

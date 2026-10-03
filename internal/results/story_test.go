@@ -1,6 +1,7 @@
 package results
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,5 +88,49 @@ func TestWithAndWithout(t *testing.T) {
 		if !strings.Contains(md, want) {
 			t.Errorf("missing %q in:\n%s", want, md)
 		}
+	}
+}
+
+// A request whose tool calls mostly read axx's steps, docs, skills or help
+// is the agent learning axx; what those calls returned is counted too.
+func TestLearningAxx(t *testing.T) {
+	cases := []struct {
+		fn, args string
+		want     bool
+	}{
+		{"axx_steps_search", `{}`, true},
+		{"skill", `{"name":"axx-acceptance-tests"}`, true},
+		{"webfetch", `{"url":"https://axx.nimbusxr.us/references/packs/rest/"}`, true},
+		{"webfetch", `{"url":"https://example.com"}`, false},
+		{"read", `{"filePath":"/app/.agents/skills/axx-acceptance-tests/references/steps-rest.md"}`, true},
+		{"read", `{"filePath":"/app/openapi.yaml"}`, false},
+		{"bash", `{"command":"cd /app && axx steps show rest.request"}`, true},
+		{"bash", `{"command":"axx --help"}`, true},
+		{"bash", `{"command":"axx run --compact"}`, false},
+		{"axx_scenarios_run", `{}`, false},
+	}
+	for _, c := range cases {
+		if got := learning(c.fn, json.RawMessage(c.args)); got != c.want {
+			t.Errorf("learning(%s, %s) = %v", c.fn, c.args, got)
+		}
+	}
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "agent"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	traj := `{"steps":[
+	  {"source":"agent","tool_calls":[
+	    {"tool_call_id":"1","function_name":"axx_steps_search","arguments":{}},
+	    {"tool_call_id":"2","function_name":"read","arguments":{"filePath":"/app/README.md"}}],
+	   "observation":{"results":[{"source_call_id":"1","content":"` + strings.Repeat("x", 400) + `"},{"source_call_id":"2","content":"readme"}]}},
+	  {"source":"agent","tool_calls":[
+	    {"tool_call_id":"3","function_name":"write","arguments":{}},
+	    {"tool_call_id":"4","function_name":"axx_scenarios_run","arguments":{}}]}]}`
+	if err := os.WriteFile(filepath.Join(dir, "agent", "trajectory.json"), []byte(traj), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := analyzeTrial(dir, 0).work
+	if w.LearnRequests != 1 || w.LearnTokens != 100 {
+		t.Errorf("learning: %d requests, %d tokens", w.LearnRequests, w.LearnTokens)
 	}
 }
