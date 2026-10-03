@@ -297,7 +297,7 @@ The mutant and variant checks are the core of it: a suite earns its reward only 
 against the correct service and its correct variants, and failing against each deliberately
 broken one.
 
-## Results and the release gate
+## Results and the baseline
 
 `results/<date>-<agent>.json` (schema below) and a Markdown report are written after every run
 (in CI, the report is the run's summary). A condition's **score** is the mean reward over the
@@ -374,13 +374,6 @@ move the score), prints the per-condition change and the tasks that flipped, and
 condition dropped by more than `--max-drop` points (default 10). The `evals` workflow applies it
 when the model has a baseline; `results/baseline-openai-gpt-6-luna.json` is the 0.1.12 run.
 
-**The release gate:** axx's `release-gate` workflow runs the evals on release-please's pull
-request before a release is published. It starts this repository's `evals` workflow with GPT-6
-Luna and `axx_ref` set to the pull request's commit, so the images build axx from that commit
-(`AXX_REF`, `images/base/Dockerfile`) rather than install a release, and it fails when the gate
-does. It needs `AXX_EVALS_TOKEN` in axx, a token that may start workflows here; without it the
-gate is off and says so.
-
 **The results page:** axx's docs publish the latest results at
 [Agent evaluations](https://axx.nimbusxr.us/explanations/agent-evals/), written from the result
 files, one per model:
@@ -408,8 +401,7 @@ Two workflows:
   reaches the rate-limit proxy, and that every answer in `testdata/negative/` gets 0. Nothing
   costs money.
 - **`evals`** runs a model on demand only (`workflow_dispatch`: pick the model, conditions, tasks
-  and attempts, and optionally `axx_ref`, an axx commit to test instead of the release), from
-  `main` only, never on pull requests. It runs OpenCode, one job per
+  and attempts), from `main` only, never on pull requests. It runs OpenCode, one job per
   condition, all at once on their own runners, two trials at a time in each, with the
   rate-limit proxy pacing the model requests (see "Rate limits" above), then a
   report job merges them into `results/ci-<model>.json` and `.md`, adds the table to the run

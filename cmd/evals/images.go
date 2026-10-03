@@ -49,10 +49,6 @@ func buildImages(dir string, noCache bool) error {
 	for _, kv := range release {
 		extra = append(extra, "--build-arg", kv)
 	}
-	// AXX_REF: a commit of axx to test instead of the release (the release gate).
-	if ref := os.Getenv("AXX_REF"); ref != "" {
-		extra = append(extra, "--build-arg", "AXX_REF="+ref)
-	}
 	dockerfile := filepath.Join(dir, "images", "base", "Dockerfile")
 	for _, target := range []struct{ name, tag string }{{"base", baseImage}, {"verifier", verifierImage}} {
 		args := append([]string{"build", "-f", dockerfile, "--target", target.name, "-t", target.tag}, extra...)

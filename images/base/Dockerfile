@@ -27,20 +27,13 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/verifier/evals-verify ./cmd/evals-verify
 
 # The axx under test: a release, checked against its checksum (images/base/axx.env,
-# which `go run ./cmd/evals images` passes in), or with AXX_REF a commit of axx not
-# released yet, built from source (the release gate tests a release this way before it
-# is published).
+# which `go run ./cmd/evals images` passes in).
 FROM ${GO_IMAGE} AS axx
 ARG AXX_VERSION
 ARG AXX_SHA256_AMD64
 ARG AXX_SHA256_ARM64
-ARG AXX_REF
 ARG TARGETARCH
 RUN set -eu; \
-    if [ -n "${AXX_REF:-}" ]; then \
-      mkdir -p /out && GOBIN=/out CGO_ENABLED=0 go install "github.com/nimbusxr/axx/cmd/axx@$AXX_REF"; \
-      exit 0; \
-    fi; \
     case "$TARGETARCH" in \
       amd64) sum="$AXX_SHA256_AMD64" ;; \
       arm64) sum="$AXX_SHA256_ARM64" ;; \

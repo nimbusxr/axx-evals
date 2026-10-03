@@ -38,12 +38,6 @@ on:
         description: Fail when a condition scores more than 10 points below the model's baseline (results/baseline-<model>.json)
         type: boolean
         default: true
-      axx_ref:
-        description: An axx commit to test instead of the release in images/base/axx.env, built from source (axx's release gate passes its release PR's)
-        type: string
-        default: ""
-
-run-name: evals ${{ inputs.model }}${{ inputs.axx_ref != '' && format(' at axx {0}', inputs.axx_ref) || '' }}
 
 permissions:
   contents: read
@@ -109,8 +103,6 @@ jobs:
           [ -f "$RUNNER_TEMP/disk-freed" ] || { echo "::error::the disk space was not freed within 10 minutes"; exit 1; }
           df -h /
       - name: Build the images
-        env:
-          AXX_REF: ${{ inputs.axx_ref }}
         run: go run ./cmd/evals images
       - name: Run the condition
         env:
@@ -169,10 +161,8 @@ jobs:
           MODEL: ${{ inputs.model }}
           SLUG: ${{ needs.plan.outputs.slug }}
           CONDITIONS: ${{ needs.plan.outputs.conditions }}
-          AXX_REF: ${{ inputs.axx_ref }}
         run: |
           axx=$(sed -n 's/^AXX_VERSION=//p' images/base/axx.env)
-          if [[ -n "$AXX_REF" ]]; then axx="commit $AXX_REF"; fi
           args=(--agent "$AGENT" --model "$MODEL" --axx-version "$axx" --out "results/ci-$SLUG")
           for c in $(jq -r '.[]' <<< "$CONDITIONS"); do
             for job in conditions/evals-"$c"/.work/jobs/*-"$c"; do
