@@ -29,7 +29,7 @@ The ids are pinned (never an alias such as `~google/gemini-pro-latest`), so runs
 | --- | --- |
 | `app/` | **parcels**, the system under test: a Go HTTP service (OpenAPI 3.1 at `/openapi.json`) with PostgreSQL storage, a MongoDB tracking read model, a manifest importer, calls to a downstream address service (WireMock in tests) and Avro `ParcelRegistered` events on Kafka. It can be started with deliberate bugs (mutants) or as a correct variant. `app/compose.yaml` runs it with its infrastructure. |
 | `internal/mutant/` | The mutants, each a realistic bug a good acceptance test must catch, and the correct variants, each a way the service may differ within its contract that a good acceptance test must not trip over. |
-| `workspace/` | The starting project most tasks share: README, `axx.yaml`, the OpenAPI contract, the business rules in `docs/`, the WireMock stubs. |
+| `workspace/` | The starting project most tasks share: README, `axx.yaml`, the OpenAPI contract, the business rules and the database schema in `docs/`, the WireMock stubs. |
 | `workspace-plain/` | What the starting project without axx has instead: its README (and `.gitignore`). |
 | `tasks/<id>/` | The tasks (Harbor format, below). |
 | `cmd/evals-verify/`, `internal/verify/` | The verifier that runs inside the verifier container. |
@@ -329,13 +329,29 @@ from the trials (their results, transcripts, verifier reports and the files the 
   "conditions": ["none", "skills", "mcp", "both", "plain"],
   "tasks": [
     {"id": "rest-crud-happy-path", "title": "...", "category": "rest",
-     "results": {"none": {"reward": 1, "core": 1, "trials": 1, "passed": 1, "mutantsCaught": 3, "mutantsTotal": 3}}}
+     "results": {"none": {
+       "reward": 0.33, "core": 1, "trials": 3, "passed": 1, "corePassed": 3,
+       "mutantsCaught": 9, "mutantsTotal": 9,
+       "agentSeconds": 238.6, "rateLimitWaitSeconds": 412.0, "rateLimitRefused": 7,
+       "models": {"openai/gpt-6-luna": 71}, "costUsd": 0.0389, "inputTokens": 1536000, "outputTokens": 9640,
+       "work": {"toolCalls": 156, "modelRequests": 71, "axxCommands": 87, "mcpCalls": 0, "skillsLoaded": 0, "docsFetched": 4, "lines": [59, 55, 61]},
+       "stumbles": {"used a service before registering it": {"trials": 1, "times": 3}},
+       "misses": [{"trial": "rest-crud-happy-path__8BLohbN", "why": "fewer scenarios than the task has criteria", "core": false,
+                   "detail": "at least 3 passing scenarios: 1 passed"}]}}}
   ],
   "skipped": [{"id": "init-first-feature", "condition": "plain", "reason": "no version without axx (tasks/init-first-feature/plain)", "byDesign": true}],
   "scores": {"none": 58.3, "skills": 75.0, "mcp": 66.7, "both": 83.3, "plain": 50.0},
   "coreScores": {"none": 66.7, "skills": 83.3, "mcp": 75.0, "both": 83.3, "plain": 50.0}
 }
 ```
+
+Per task and condition: `trials` are the scored trials, `passed` those with reward 1 and
+`corePassed` those that passed every core check; `errors` count scored trials that ended in the
+agent's own exception, `unscored` (by exception type) those left out. `agentSeconds` is the
+agents' working time, the rate limit's waits (`rateLimitWaitSeconds`, `rateLimitRefused`) left out;
+`models` counts the model requests by model. `work` is what the agents did (`lines`: the lines of
+the files each trial added or changed), `stumbles` the troubles in axx's output by kind, and
+`misses` every scored trial without reward 1 and the first check it failed.
 
 The **baseline** is a result file promoted as-is, one per model: `results/baseline-<model>.json`,
 with the model's OpenRouter id after `openrouter/` and `/` as `-` (copy a run you trust). The
