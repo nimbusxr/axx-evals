@@ -1,0 +1,15 @@
+parcels.parcels:
+  - reference: "PX-RULES-CHANGE-001"
+    sender: "shop-rules"
+    status: "PICKED_UP"
+    weight_grams: 1200
+    service_level: "STANDARD"
+    recipient:
+      name: "Ada Rules"
+      street: "Example Street 1"
+      city: "Berlin"
+      postcode: "10115"
+      country: "DE"
+    details:
+      source: "api"
+      zone: "DE-1"

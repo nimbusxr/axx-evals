@@ -1,0 +1,1635 @@
+{
+  "schemaVersion": 1,
+  "kind": "axx-evals-results",
+  "date": "2026-10-03",
+  "agent": "opencode",
+  "model": "openrouter/openai/gpt-6-luna",
+  "axx": "0.1.12",
+  "harbor": "0.23.0",
+  "conditions": [
+    "none",
+    "skills",
+    "mcp",
+    "both",
+    "plain"
+  ],
+  "tasks": [
+    {
+      "id": "fix-broken-feature",
+      "title": "Fix a broken feature",
+      "category": "debugging",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 72,
+            "modelRequests": 37,
+            "axxCommands": 0,
+            "mcpCalls": 27,
+            "skillsLoaded": 4,
+            "docsFetched": 0,
+            "lines": [
+              30,
+              30,
+              30
+            ],
+            "learnRequests": 5,
+            "learnTokens": 17011
+          },
+          "stumbles": {
+            "undefined step text": {
+              "trials": 3,
+              "times": 3
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 133.99227907599996,
+          "rateLimitWaitSeconds": 556.3793929240001,
+          "rateLimitRefused": 8,
+          "models": {
+            "openai/gpt-6-luna": 37
+          },
+          "costUsd": 0.015169470000000001,
+          "inputTokens": 481854,
+          "outputTokens": 3420
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 70,
+            "modelRequests": 35,
+            "axxCommands": 0,
+            "mcpCalls": 27,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              30,
+              30,
+              30
+            ],
+            "learnRequests": 2,
+            "learnTokens": 12277
+          },
+          "stumbles": {
+            "undefined step text": {
+              "trials": 2,
+              "times": 2
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 95.25239465600004,
+          "rateLimitWaitSeconds": 508.45222038299994,
+          "rateLimitRefused": 7,
+          "models": {
+            "openai/gpt-6-luna": 35
+          },
+          "costUsd": 0.013175855,
+          "inputTokens": 401634,
+          "outputTokens": 3498
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 92,
+            "modelRequests": 40,
+            "axxCommands": 26,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              30,
+              30,
+              30
+            ],
+            "learnRequests": 5,
+            "learnTokens": 8719
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 107.69345636100002,
+          "rateLimitWaitSeconds": 573.141432396,
+          "rateLimitRefused": 9,
+          "models": {
+            "openai/gpt-6-luna": 40
+          },
+          "costUsd": 0.0134898,
+          "inputTokens": 407656,
+          "outputTokens": 4219
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 72,
+            "modelRequests": 40,
+            "axxCommands": 22,
+            "mcpCalls": 0,
+            "skillsLoaded": 3,
+            "docsFetched": 0,
+            "lines": [
+              30,
+              30,
+              30
+            ],
+            "learnRequests": 4,
+            "learnTokens": 18043
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 87.43736271500002,
+          "rateLimitWaitSeconds": 458.519587647,
+          "rateLimitRefused": 6,
+          "models": {
+            "openai/gpt-6-luna": 40
+          },
+          "costUsd": 0.014450455000000001,
+          "inputTokens": 469834,
+          "outputTokens": 3625
+        }
+      }
+    },
+    {
+      "id": "init-first-feature",
+      "title": "axx init a bare repository and write the first feature",
+      "category": "setup",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 126,
+            "modelRequests": 57,
+            "axxCommands": 46,
+            "mcpCalls": 16,
+            "skillsLoaded": 6,
+            "docsFetched": 0,
+            "lines": [
+              99,
+              107,
+              94
+            ],
+            "learnRequests": 18,
+            "learnTokens": 24151
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 209.7864471810001,
+          "rateLimitWaitSeconds": 1169.650424819,
+          "rateLimitRefused": 12,
+          "models": {
+            "openai/gpt-6-luna": 57
+          },
+          "costUsd": 0.032100895000000004,
+          "inputTokens": 1018244,
+          "outputTokens": 8874
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 157,
+            "modelRequests": 76,
+            "axxCommands": 63,
+            "mcpCalls": 25,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              56,
+              80,
+              70
+            ],
+            "learnRequests": 21,
+            "learnTokens": 46868
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 300.85751743500003,
+          "rateLimitWaitSeconds": 1594.263693565,
+          "rateLimitRefused": 12,
+          "models": {
+            "openai/gpt-6-luna": 76
+          },
+          "costUsd": 0.040657485,
+          "inputTokens": 1649815,
+          "outputTokens": 9500
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 161,
+            "modelRequests": 77,
+            "axxCommands": 90,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              61,
+              72,
+              70
+            ],
+            "learnRequests": 23,
+            "learnTokens": 34998
+          },
+          "stumbles": {
+            "no step with that id": {
+              "trials": 1,
+              "times": 1
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 339.6112817689998,
+          "rateLimitWaitSeconds": 1665.982195231,
+          "rateLimitRefused": 18,
+          "models": {
+            "openai/gpt-6-luna": 77
+          },
+          "costUsd": 0.04372421,
+          "inputTokens": 1391123,
+          "outputTokens": 9409
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 151,
+            "modelRequests": 81,
+            "axxCommands": 56,
+            "mcpCalls": 0,
+            "skillsLoaded": 6,
+            "docsFetched": 0,
+            "lines": [
+              106,
+              94,
+              94
+            ],
+            "learnRequests": 16,
+            "learnTokens": 29327
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 359.05835872600005,
+          "rateLimitWaitSeconds": 1638.8491242740001,
+          "rateLimitRefused": 21,
+          "models": {
+            "openai/gpt-6-luna": 81
+          },
+          "costUsd": 0.04367437999999999,
+          "inputTokens": 1696632,
+          "outputTokens": 10364
+        }
+      }
+    },
+    {
+      "id": "kafka-registered-event",
+      "title": "Kafka: Avro event published on registration",
+      "category": "kafka",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 134,
+            "modelRequests": 59,
+            "axxCommands": 2,
+            "mcpCalls": 67,
+            "skillsLoaded": 4,
+            "docsFetched": 0,
+            "lines": [
+              76,
+              76,
+              41
+            ],
+            "learnRequests": 14,
+            "learnTokens": 59699
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 280.16718497799997,
+          "rateLimitWaitSeconds": 989.8330920220001,
+          "rateLimitRefused": 12,
+          "models": {
+            "openai/gpt-6-luna": 59
+          },
+          "costUsd": 0.044839105,
+          "inputTokens": 1652236,
+          "outputTokens": 8742
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 145,
+            "modelRequests": 64,
+            "axxCommands": 0,
+            "mcpCalls": 91,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              88,
+              79,
+              37
+            ],
+            "learnRequests": 14,
+            "learnTokens": 23810
+          },
+          "stumbles": {
+            "undefined step text": {
+              "trials": 1,
+              "times": 1
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 273.26488534399994,
+          "rateLimitWaitSeconds": 1189.948006656,
+          "rateLimitRefused": 17,
+          "models": {
+            "openai/gpt-6-luna": 64
+          },
+          "costUsd": 0.034190620000000005,
+          "inputTokens": 1322240,
+          "outputTokens": 8990
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 111,
+            "modelRequests": 49,
+            "axxCommands": 29,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 14,
+            "lines": [
+              44,
+              31,
+              43
+            ],
+            "learnRequests": 13,
+            "learnTokens": 76335
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 140.14983529999995,
+          "rateLimitWaitSeconds": 910.7767617,
+          "rateLimitRefused": 8,
+          "models": {
+            "openai/gpt-6-luna": 49
+          },
+          "costUsd": 0.0332515,
+          "inputTokens": 1134308,
+          "outputTokens": 6646
+        },
+        "plain": {
+          "reward": 0,
+          "core": 0,
+          "trials": 3,
+          "passed": 0,
+          "corePassed": 0,
+          "work": {
+            "toolCalls": 87,
+            "modelRequests": 49,
+            "axxCommands": 0,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              227,
+              281,
+              255
+            ]
+          },
+          "misses": [
+            {
+              "trial": "kafka-registered-event__Gfm6ipe",
+              "why": "failed against the correct service",
+              "core": true,
+              "detail": "passes against the correct app (run 1 of 2, fresh data): exit 1 after 21s: Downloading fastavro (3.2MiB) Downloaded fastavro Installed 2 packages in 6ms FAIL: No event with Kafka key 'PX-AT-34D908770FED4566B8A687C6CE9F1D2A' appeared on 'par…"
+            },
+            {
+              "trial": "kafka-registered-event__MbgkmYn",
+              "why": "failed against the correct service",
+              "core": true,
+              "detail": "passes against the correct app (run 1 of 2, fresh data): exit 1 after 21s: ... (most recent call last): File \"/app/acceptance_tests/test_parcel_registered.py\", line 272, in \u003cmodule\u003e main() File \"/app/acceptance_tests/test_parcel_registered.…"
+            },
+            {
+              "trial": "kafka-registered-event__XuaPDXW",
+              "why": "failed against a correct variant",
+              "core": true,
+              "detail": "passes against the correct variant events-topic-gzip (the events topic is configured with compression.type=gzip, so the broker stores every event in a gzip-compressed batch): exit 1 after 10s: FAIL: Timed out preparing a Kafka consumer for …"
+            }
+          ],
+          "mutantsCaught": 2,
+          "mutantsTotal": 6,
+          "agentSeconds": 384.92302736499994,
+          "rateLimitWaitSeconds": 1329.6527896349999,
+          "rateLimitRefused": 13,
+          "models": {
+            "openai/gpt-6-luna": 49
+          },
+          "costUsd": 0.034665310000000005,
+          "inputTokens": 684989,
+          "outputTokens": 14757
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 111,
+            "modelRequests": 79,
+            "axxCommands": 24,
+            "mcpCalls": 0,
+            "skillsLoaded": 5,
+            "docsFetched": 0,
+            "lines": [
+              85,
+              36,
+              69
+            ],
+            "learnRequests": 13,
+            "learnTokens": 86790
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 176.97292233499996,
+          "rateLimitWaitSeconds": 1633.57531798,
+          "rateLimitRefused": 15,
+          "models": {
+            "openai/gpt-6-luna": 79
+          },
+          "costUsd": 0.054196619999999994,
+          "inputTokens": 2260440,
+          "outputTokens": 7870
+        }
+      }
+    },
+    {
+      "id": "mock-address-check",
+      "title": "Downstream call verified through WireMock",
+      "category": "mock",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 113,
+            "modelRequests": 56,
+            "axxCommands": 0,
+            "mcpCalls": 45,
+            "skillsLoaded": 3,
+            "docsFetched": 0,
+            "lines": [
+              64,
+              66,
+              62
+            ],
+            "learnRequests": 8,
+            "learnTokens": 32237
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 225.36620566599996,
+          "rateLimitWaitSeconds": 982.153219334,
+          "rateLimitRefused": 14,
+          "models": {
+            "openai/gpt-6-luna": 56
+          },
+          "costUsd": 0.032676245,
+          "inputTokens": 1197131,
+          "outputTokens": 8843
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 153,
+            "modelRequests": 73,
+            "axxCommands": 0,
+            "mcpCalls": 96,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              68,
+              53,
+              55
+            ],
+            "learnRequests": 17,
+            "learnTokens": 22132
+          },
+          "stumbles": {
+            "undefined step text": {
+              "trials": 1,
+              "times": 2
+            }
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 185.01869191699996,
+          "rateLimitWaitSeconds": 1591.822819083,
+          "rateLimitRefused": 21,
+          "models": {
+            "openai/gpt-6-luna": 73
+          },
+          "costUsd": 0.0344922,
+          "inputTokens": 1533780,
+          "outputTokens": 8788
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 134,
+            "modelRequests": 59,
+            "axxCommands": 67,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 1,
+            "lines": [
+              49,
+              47,
+              48
+            ],
+            "learnRequests": 15,
+            "learnTokens": 27371
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 166.98343121900007,
+          "rateLimitWaitSeconds": 1114.4446587809998,
+          "rateLimitRefused": 15,
+          "models": {
+            "openai/gpt-6-luna": 59
+          },
+          "costUsd": 0.026250305,
+          "inputTokens": 950231,
+          "outputTokens": 8060
+        },
+        "plain": {
+          "reward": 0.6666666666666666,
+          "core": 0.6666666666666666,
+          "trials": 3,
+          "passed": 2,
+          "corePassed": 2,
+          "work": {
+            "toolCalls": 90,
+            "modelRequests": 51,
+            "axxCommands": 0,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              170,
+              127,
+              170
+            ]
+          },
+          "misses": [
+            {
+              "trial": "mock-address-check__uhEQRpc",
+              "why": "failed against the correct service",
+              "core": true,
+              "detail": "passes against the correct app (run 1 of 2, fresh data): exit 1 after 0s: FAIL: GET /v1/postcodes/DE/50377 did not carry X-Api-Key: evals-address-key; recorded value was 'evals-address-key'"
+            }
+          ],
+          "mutantsCaught": 6,
+          "mutantsTotal": 9,
+          "agentSeconds": 211.340443165,
+          "rateLimitWaitSeconds": 1135.275726835,
+          "rateLimitRefused": 9,
+          "models": {
+            "openai/gpt-6-luna": 51
+          },
+          "costUsd": 0.02587758,
+          "inputTokens": 675387,
+          "outputTokens": 10357
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 97,
+            "modelRequests": 55,
+            "axxCommands": 18,
+            "mcpCalls": 0,
+            "skillsLoaded": 4,
+            "docsFetched": 0,
+            "lines": [
+              67,
+              77,
+              67
+            ],
+            "learnRequests": 10,
+            "learnTokens": 62530
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 151.43868341400005,
+          "rateLimitWaitSeconds": 1113.443875586,
+          "rateLimitRefused": 10,
+          "models": {
+            "openai/gpt-6-luna": 55
+          },
+          "costUsd": 0.03759514,
+          "inputTokens": 1455010,
+          "outputTokens": 7755
+        }
+      }
+    },
+    {
+      "id": "mongo-tracking-view",
+      "title": "MongoDB: seed scans, assert the read model",
+      "category": "mongo",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 89,
+            "modelRequests": 46,
+            "axxCommands": 2,
+            "mcpCalls": 27,
+            "skillsLoaded": 4,
+            "docsFetched": 0,
+            "lines": [
+              129,
+              122,
+              107
+            ],
+            "learnRequests": 7,
+            "learnTokens": 44536
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 192.70739468900004,
+          "rateLimitWaitSeconds": 800.676441311,
+          "rateLimitRefused": 9,
+          "models": {
+            "openai/gpt-6-luna": 46
+          },
+          "costUsd": 0.034506015,
+          "inputTokens": 994753,
+          "outputTokens": 8710
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 120,
+            "modelRequests": 48,
+            "axxCommands": 0,
+            "mcpCalls": 67,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              119,
+              136,
+              124
+            ],
+            "learnRequests": 8,
+            "learnTokens": 19523
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 224.247538469,
+          "rateLimitWaitSeconds": 991.463734531,
+          "rateLimitRefused": 8,
+          "models": {
+            "openai/gpt-6-luna": 48
+          },
+          "costUsd": 0.029231405000000002,
+          "inputTokens": 847263,
+          "outputTokens": 10673
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 117,
+            "modelRequests": 54,
+            "axxCommands": 49,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 9,
+            "lines": [
+              144,
+              145,
+              108
+            ],
+            "learnRequests": 14,
+            "learnTokens": 62628
+          },
+          "stumbles": {
+            "checked the first selection after a later one": {
+              "trials": 1,
+              "times": 1
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 258.661159699,
+          "rateLimitWaitSeconds": 1237.009468301,
+          "rateLimitRefused": 18,
+          "models": {
+            "openai/gpt-6-luna": 54
+          },
+          "costUsd": 0.038669445000000004,
+          "inputTokens": 1163030,
+          "outputTokens": 10834
+        },
+        "plain": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 89,
+            "modelRequests": 55,
+            "axxCommands": 0,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              270,
+              212,
+              211
+            ]
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 277.754600669,
+          "rateLimitWaitSeconds": 1019.722825331,
+          "rateLimitRefused": 14,
+          "models": {
+            "openai/gpt-6-luna": 55
+          },
+          "costUsd": 0.03156967,
+          "inputTokens": 768238,
+          "outputTokens": 11793
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 93,
+            "modelRequests": 49,
+            "axxCommands": 24,
+            "mcpCalls": 0,
+            "skillsLoaded": 4,
+            "docsFetched": 0,
+            "lines": [
+              92,
+              117,
+              133
+            ],
+            "learnRequests": 8,
+            "learnTokens": 52080
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 269.430025677,
+          "rateLimitWaitSeconds": 923.294921323,
+          "rateLimitRefused": 10,
+          "models": {
+            "openai/gpt-6-luna": 49
+          },
+          "costUsd": 0.037212695,
+          "inputTokens": 1130440,
+          "outputTokens": 8606
+        }
+      }
+    },
+    {
+      "id": "openapi-reject-invalid",
+      "title": "OpenAPI negative cases: refuse invalid registrations",
+      "category": "openapi",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 104,
+            "modelRequests": 61,
+            "axxCommands": 0,
+            "mcpCalls": 44,
+            "skillsLoaded": 3,
+            "docsFetched": 0,
+            "lines": [
+              40,
+              38,
+              41
+            ],
+            "learnRequests": 11,
+            "learnTokens": 39212
+          },
+          "stumbles": {
+            "numbered requests (1st, 2nd …) out of order": {
+              "trials": 2,
+              "times": 4
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 219.341073318,
+          "rateLimitWaitSeconds": 1053.595233682,
+          "rateLimitRefused": 14,
+          "models": {
+            "openai/gpt-6-luna": 61
+          },
+          "costUsd": 0.033122175000000004,
+          "inputTokens": 1363664,
+          "outputTokens": 7049
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 119,
+            "modelRequests": 65,
+            "axxCommands": 1,
+            "mcpCalls": 65,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              41,
+              38,
+              43
+            ],
+            "learnRequests": 13,
+            "learnTokens": 18662
+          },
+          "stumbles": {
+            "numbered requests (1st, 2nd …) out of order": {
+              "trials": 1,
+              "times": 2
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 297.04166016000005,
+          "rateLimitWaitSeconds": 1113.14616384,
+          "rateLimitRefused": 14,
+          "models": {
+            "openai/gpt-6-luna": 65
+          },
+          "costUsd": 0.03000017,
+          "inputTokens": 1162618,
+          "outputTokens": 8106
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 117,
+            "modelRequests": 60,
+            "axxCommands": 49,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 3,
+            "lines": [
+              41,
+              34,
+              35
+            ],
+            "learnRequests": 15,
+            "learnTokens": 35632
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 169.959261968,
+          "rateLimitWaitSeconds": 970.964298032,
+          "rateLimitRefused": 14,
+          "models": {
+            "openai/gpt-6-luna": 60
+          },
+          "costUsd": 0.02652736,
+          "inputTokens": 981022,
+          "outputTokens": 6850
+        },
+        "plain": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 57,
+            "modelRequests": 36,
+            "axxCommands": 0,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              85,
+              75,
+              91
+            ]
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 187.7303092360001,
+          "rateLimitWaitSeconds": 887.9213177639999,
+          "rateLimitRefused": 13,
+          "models": {
+            "openai/gpt-6-luna": 36
+          },
+          "costUsd": 0.01795355,
+          "inputTokens": 332139,
+          "outputTokens": 6638
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 83,
+            "modelRequests": 55,
+            "axxCommands": 19,
+            "mcpCalls": 0,
+            "skillsLoaded": 3,
+            "docsFetched": 0,
+            "lines": [
+              41,
+              37,
+              39
+            ],
+            "learnRequests": 7,
+            "learnTokens": 42985
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 139.45827398799995,
+          "rateLimitWaitSeconds": 821.422054012,
+          "rateLimitRefused": 10,
+          "models": {
+            "openai/gpt-6-luna": 55
+          },
+          "costUsd": 0.02963209,
+          "inputTokens": 1122455,
+          "outputTokens": 5662
+        }
+      }
+    },
+    {
+      "id": "parallel-unique-data",
+      "title": "Parallel-safe, unique test data",
+      "category": "isolation",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 148,
+            "modelRequests": 73,
+            "axxCommands": 23,
+            "mcpCalls": 46,
+            "skillsLoaded": 7,
+            "docsFetched": 0,
+            "lines": [
+              135,
+              139,
+              134
+            ],
+            "learnRequests": 19,
+            "learnTokens": 61850
+          },
+          "stumbles": {
+            "numbered requests (1st, 2nd …) out of order": {
+              "trials": 1,
+              "times": 2
+            },
+            "seed rejected by the database": {
+              "trials": 1,
+              "times": 1
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 375.64837838600016,
+          "rateLimitWaitSeconds": 1415.4356966139999,
+          "rateLimitRefused": 16,
+          "models": {
+            "openai/gpt-6-luna": 73
+          },
+          "costUsd": 0.05817427,
+          "inputTokens": 2408162,
+          "outputTokens": 11071
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 177,
+            "modelRequests": 77,
+            "axxCommands": 29,
+            "mcpCalls": 74,
+            "skillsLoaded": 0,
+            "docsFetched": 7,
+            "lines": [
+              147,
+              141,
+              175
+            ],
+            "learnRequests": 19,
+            "learnTokens": 52643
+          },
+          "stumbles": {
+            "lint rule that finds no values": {
+              "trials": 1,
+              "times": 1
+            },
+            "numbered requests (1st, 2nd …) out of order": {
+              "trials": 1,
+              "times": 3
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 403.153938416,
+          "rateLimitWaitSeconds": 1650.690401584,
+          "rateLimitRefused": 20,
+          "models": {
+            "openai/gpt-6-luna": 77
+          },
+          "costUsd": 0.057014775,
+          "inputTokens": 2288717,
+          "outputTokens": 13189
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 162,
+            "modelRequests": 70,
+            "axxCommands": 64,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 11,
+            "lines": [
+              137,
+              135,
+              182
+            ],
+            "learnRequests": 13,
+            "learnTokens": 67684
+          },
+          "stumbles": {
+            "lint rule that finds no values": {
+              "trials": 1,
+              "times": 1
+            },
+            "no step with that id": {
+              "trials": 1,
+              "times": 1
+            },
+            "numbered requests (1st, 2nd …) out of order": {
+              "trials": 1,
+              "times": 2
+            },
+            "seed rejected by the database": {
+              "trials": 1,
+              "times": 1
+            }
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 257.605279397,
+          "rateLimitWaitSeconds": 1602.753757603,
+          "rateLimitRefused": 18,
+          "models": {
+            "openai/gpt-6-luna": 70
+          },
+          "costUsd": 0.05105897499999999,
+          "inputTokens": 1993076,
+          "outputTokens": 12329
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 201,
+            "modelRequests": 101,
+            "axxCommands": 75,
+            "mcpCalls": 0,
+            "skillsLoaded": 6,
+            "docsFetched": 5,
+            "lines": [
+              133,
+              141,
+              166
+            ],
+            "learnRequests": 15,
+            "learnTokens": 134520
+          },
+          "mutantsCaught": 6,
+          "mutantsTotal": 6,
+          "agentSeconds": 628.349149115,
+          "rateLimitWaitSeconds": 1260.343199885,
+          "rateLimitRefused": 13,
+          "models": {
+            "openai/gpt-6-luna": 101
+          },
+          "costUsd": 0.10706487500000003,
+          "inputTokens": 5612004,
+          "outputTokens": 15220
+        }
+      }
+    },
+    {
+      "id": "rest-crud-happy-path",
+      "title": "REST happy path: register, fetch, change, cancel",
+      "category": "rest",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 127,
+            "modelRequests": 78,
+            "axxCommands": 0,
+            "mcpCalls": 61,
+            "skillsLoaded": 3,
+            "docsFetched": 0,
+            "lines": [
+              119,
+              106,
+              105
+            ],
+            "learnRequests": 12,
+            "learnTokens": 19038
+          },
+          "stumbles": {
+            "numbered requests (1st, 2nd …) out of order": {
+              "trials": 1,
+              "times": 1
+            },
+            "undefined step text": {
+              "trials": 1,
+              "times": 1
+            }
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 284.6388598070001,
+          "rateLimitWaitSeconds": 1305.951433193,
+          "rateLimitRefused": 14,
+          "models": {
+            "openai/gpt-6-luna": 78
+          },
+          "costUsd": 0.037257495,
+          "inputTokens": 1577487,
+          "outputTokens": 10918
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 120,
+            "modelRequests": 61,
+            "axxCommands": 0,
+            "mcpCalls": 69,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              112,
+              91,
+              107
+            ],
+            "learnRequests": 16,
+            "learnTokens": 17101
+          },
+          "stumbles": {
+            "numbered requests (1st, 2nd …) out of order": {
+              "trials": 2,
+              "times": 4
+            }
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 283.0298227599999,
+          "rateLimitWaitSeconds": 821.7956202400001,
+          "rateLimitRefused": 10,
+          "models": {
+            "openai/gpt-6-luna": 61
+          },
+          "costUsd": 0.02873286,
+          "inputTokens": 1063245,
+          "outputTokens": 9999
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 113,
+            "modelRequests": 66,
+            "axxCommands": 37,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 13,
+            "lines": [
+              102,
+              106,
+              106
+            ],
+            "learnRequests": 11,
+            "learnTokens": 67009
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 223.63844043299994,
+          "rateLimitWaitSeconds": 1110.093864567,
+          "rateLimitRefused": 10,
+          "models": {
+            "openai/gpt-6-luna": 66
+          },
+          "costUsd": 0.041579660000000004,
+          "inputTokens": 1672040,
+          "outputTokens": 10153
+        },
+        "plain": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 71,
+            "modelRequests": 43,
+            "axxCommands": 0,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              149,
+              69,
+              116
+            ]
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 109.77602740600003,
+          "rateLimitWaitSeconds": 884.0105405939998,
+          "rateLimitRefused": 10,
+          "models": {
+            "openai/gpt-6-luna": 43
+          },
+          "costUsd": 0.01860444,
+          "inputTokens": 447639,
+          "outputTokens": 9169
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 119,
+            "modelRequests": 85,
+            "axxCommands": 30,
+            "mcpCalls": 0,
+            "skillsLoaded": 6,
+            "docsFetched": 0,
+            "lines": [
+              110,
+              110,
+              101
+            ],
+            "learnRequests": 13,
+            "learnTokens": 61011
+          },
+          "mutantsCaught": 9,
+          "mutantsTotal": 9,
+          "agentSeconds": 359.1823548130001,
+          "rateLimitWaitSeconds": 1276.7794361869999,
+          "rateLimitRefused": 16,
+          "models": {
+            "openai/gpt-6-luna": 85
+          },
+          "costUsd": 0.059125569999999995,
+          "inputTokens": 2716543,
+          "outputTokens": 11645
+        }
+      }
+    },
+    {
+      "id": "sql-manifest-import",
+      "title": "PostgreSQL: seed rows, assert written rows and JSON columns",
+      "category": "sql",
+      "results": {
+        "both": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 123,
+            "modelRequests": 65,
+            "axxCommands": 2,
+            "mcpCalls": 47,
+            "skillsLoaded": 5,
+            "docsFetched": 0,
+            "lines": [
+              96,
+              101,
+              90
+            ],
+            "learnRequests": 12,
+            "learnTokens": 40173
+          },
+          "stumbles": {
+            "seed rejected by the database": {
+              "trials": 1,
+              "times": 1
+            }
+          },
+          "mutantsCaught": 12,
+          "mutantsTotal": 12,
+          "agentSeconds": 196.99264563799997,
+          "rateLimitWaitSeconds": 1085.829751362,
+          "rateLimitRefused": 12,
+          "models": {
+            "openai/gpt-6-luna": 65
+          },
+          "costUsd": 0.038179454999999994,
+          "inputTokens": 1521409,
+          "outputTokens": 9196
+        },
+        "mcp": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 120,
+            "modelRequests": 54,
+            "axxCommands": 1,
+            "mcpCalls": 65,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              97,
+              81,
+              69
+            ],
+            "learnRequests": 8,
+            "learnTokens": 17782
+          },
+          "stumbles": {
+            "checked the first selection after a later one": {
+              "trials": 3,
+              "times": 6
+            }
+          },
+          "mutantsCaught": 12,
+          "mutantsTotal": 12,
+          "agentSeconds": 181.40256620599996,
+          "rateLimitWaitSeconds": 1006.419233794,
+          "rateLimitRefused": 16,
+          "models": {
+            "openai/gpt-6-luna": 54
+          },
+          "costUsd": 0.025331775,
+          "inputTokens": 903913,
+          "outputTokens": 9080
+        },
+        "none": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 128,
+            "modelRequests": 56,
+            "axxCommands": 51,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 5,
+            "lines": [
+              70,
+              73,
+              73
+            ],
+            "learnRequests": 11,
+            "learnTokens": 29349
+          },
+          "stumbles": {
+            "checked the first selection after a later one": {
+              "trials": 1,
+              "times": 2
+            },
+            "no step with that id": {
+              "trials": 1,
+              "times": 1
+            },
+            "used a service before registering it": {
+              "trials": 1,
+              "times": 2
+            }
+          },
+          "mutantsCaught": 12,
+          "mutantsTotal": 12,
+          "agentSeconds": 171.38318786999994,
+          "rateLimitWaitSeconds": 1124.92509513,
+          "rateLimitRefused": 11,
+          "models": {
+            "openai/gpt-6-luna": 56
+          },
+          "costUsd": 0.028736934999999998,
+          "inputTokens": 949800,
+          "outputTokens": 9039
+        },
+        "plain": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 102,
+            "modelRequests": 55,
+            "axxCommands": 0,
+            "mcpCalls": 0,
+            "skillsLoaded": 0,
+            "docsFetched": 0,
+            "lines": [
+              190,
+              163,
+              184
+            ]
+          },
+          "mutantsCaught": 12,
+          "mutantsTotal": 12,
+          "agentSeconds": 227.11011286999997,
+          "rateLimitWaitSeconds": 1309.36604613,
+          "rateLimitRefused": 18,
+          "models": {
+            "openai/gpt-6-luna": 55
+          },
+          "costUsd": 0.02590991,
+          "inputTokens": 704312,
+          "outputTokens": 10960
+        },
+        "skills": {
+          "reward": 1,
+          "core": 1,
+          "trials": 3,
+          "passed": 3,
+          "corePassed": 3,
+          "work": {
+            "toolCalls": 120,
+            "modelRequests": 72,
+            "axxCommands": 33,
+            "mcpCalls": 0,
+            "skillsLoaded": 4,
+            "docsFetched": 0,
+            "lines": [
+              90,
+              87,
+              96
+            ],
+            "learnRequests": 6,
+            "learnTokens": 50745
+          },
+          "stumbles": {
+            "checked the first selection after a later one": {
+              "trials": 2,
+              "times": 2
+            },
+            "seed rejected by the database": {
+              "trials": 1,
+              "times": 1
+            }
+          },
+          "mutantsCaught": 12,
+          "mutantsTotal": 12,
+          "agentSeconds": 217.3773042709999,
+          "rateLimitWaitSeconds": 1475.260135729,
+          "rateLimitRefused": 22,
+          "models": {
+            "openai/gpt-6-luna": 72
+          },
+          "costUsd": 0.04239317,
+          "inputTokens": 1847829,
+          "outputTokens": 9365
+        }
+      }
+    }
+  ],
+  "scores": {
+    "both": 100,
+    "mcp": 100,
+    "none": 100,
+    "plain": 77.8,
+    "skills": 100
+  },
+  "coreScores": {
+    "both": 100,
+    "mcp": 100,
+    "none": 100,
+    "plain": 77.8,
+    "skills": 100
+  }
+}

@@ -1,6 +1,6 @@
 // Package results aggregates Harbor job results into the evals result file
 // (evals/results/<date>-<agent>.json), renders it as Markdown, and compares
-// a result file with a baseline for the release gate.
+// a result file with a model's baseline.
 package results
 
 import (

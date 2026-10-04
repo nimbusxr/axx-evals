@@ -52,6 +52,8 @@ The ids are pinned (never an alias such as `~google/gemini-pro-latest`), so runs
 | `fix-broken-feature` | | repair a feature with a wrong step text and a wrong expectation, keeping its scenarios | `import-wrong-source`, `import-accepts-overweight` | `import-takes-seconds`, `json-properties-reordered` |
 | `init-first-feature` | rest | `axx init` a bare repository, make `axx run` start the service, write the first feature | `wrong-status-on-duplicate`, `wrong-status-on-create` | `json-properties-reordered` |
 | `parallel-unique-data` | rest | a shop's parcel list, correct under 16 workers in random order, plus an `axx lint` rule that bites | `list-ignores-sender-filter`, `delete-not-removed` | `json-properties-reordered` |
+| `registration-end-to-end` | rest, kafka | a registration followed through every service: the address check (once, with the API key), the stored parcel and its zone, the undeliverable refusal, the `ParcelRegistered` event | `wrong-status-on-create`, `skips-address-check`, `address-check-without-api-key`, `ignores-undeliverable`, `event-not-published`, `event-weight-in-kilograms` | `json-properties-reordered`, `events-topic-gzip` |
+| `change-rules` | rest | no change or cancellation once a depot picked the parcel up (a status only the database holds, so the tests seed it), the refused change not stored, a registered parcel still changeable | `change-after-pickup`, `refused-change-stored`, `cancel-after-pickup`, `update-not-persisted` | `json-properties-reordered` |
 
 The correct variants (`internal/mutant`) differ from the default service only where the docs and
 the contract leave room, the way real services do:
@@ -295,7 +297,7 @@ The mutant and variant checks are the core of it: a suite earns its reward only 
 against the correct service and its correct variants, and failing against each deliberately
 broken one.
 
-## Results and the release gate
+## Results and the baseline
 
 `results/<date>-<agent>.json` (schema below) and a Markdown report are written after every run
 (in CI, the report is the run's summary). A condition's **score** is the mean reward over the
@@ -329,7 +331,7 @@ from the trials (their results, transcripts, verifier reports and the files the 
   "date": "2026-10-02",
   "agent": "opencode",
   "model": "openrouter/openai/gpt-6-luna",
-  "axx": "0.1.12",
+  "axx": "0.1.13",
   "harbor": "0.23.0",
   "conditions": ["none", "skills", "mcp", "both", "plain"],
   "tasks": [
@@ -370,7 +372,17 @@ go run ./cmd/evals compare results/baseline-openai-gpt-6-luna.json results/ci-op
 It scores both files over the tasks they have in common (so adding or skipping tasks does not
 move the score), prints the per-condition change and the tasks that flipped, and exits 1 when any
 condition dropped by more than `--max-drop` points (default 10). The `evals` workflow applies it
-when the model has a baseline. Gating axx's own releases on it is planned, not wired up yet.
+when the model has a baseline; `results/baseline-openai-gpt-6-luna.json` is the 0.1.12 run.
+
+**The results page:** axx's docs publish the latest results at
+[Agent evaluations](https://axx.nimbusxr.us/explanations/agent-evals/), written from the result
+files, one per model:
+
+```sh
+go run ./cmd/evals page -out ../axx/docs/src/content/docs/explanations/agent-evals.md \
+  -link openrouter/openai/gpt-6-luna=https://github.com/nimbusxr/axx-evals/actions/runs/<run> \
+  results/ci-openai-gpt-6-luna.json
+```
 Agents are nondeterministic: use `--attempts 3` for gate runs so a single unlucky trial does not
 move a task by a full 100 points.
 

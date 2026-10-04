@@ -1,0 +1,37 @@
+schema_version = "1.4"
+
+[task]
+name = "axx-evals/registration-end-to-end"
+description = "Acceptance tests that follow a registration end to end: the address check, the stored parcel and its zone, and the ParcelRegistered event."
+keywords = ["axx", "gherkin", "acceptance-testing", "rest", "wiremock", "kafka", "avro"]
+
+[metadata]
+title = "A registration end to end: address check, stored parcel, event"
+difficulty = "hard"
+category = "end-to-end"
+requires = ["rest", "kafka"]
+services = ["postgres", "mongo", "address-service", "kafka"]
+workspace = "common"
+
+[verifier]
+timeout_sec = 1200.0
+environment_mode = "separate"
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 900.0
+cpus = 2
+memory_mb = 6144
+
+[environment.healthcheck]
+command = "wait-for-services"
+interval_sec = 2.0
+timeout_sec = 10.0
+start_period_sec = 120.0
+retries = 60
+
+[[artifacts]]
+source = "/app"
+exclude = [".axx", ".git"]

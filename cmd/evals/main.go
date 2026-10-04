@@ -31,6 +31,7 @@ var commands = map[string]func(args []string) error{
 	"prepare": cmdPrepare,
 	"run":     cmdRun,
 	"report":  cmdReport,
+	"page":    cmdPage,
 	"proxy":   cmdProxy, // the rate-limit proxy on its own, for trying it out
 	"compare": cmdCompare,
 	"packs":   cmdPacks,
