@@ -74,6 +74,8 @@ var stumbleKinds = []struct {
 	{"payload table value in single quotes", regexp.MustCompile(`AXX-E0834`)},
 	{"checked the first selection after a later one", regexp.MustCompile(`AXX-E0835`)},
 	{"lint rule that finds no values", regexp.MustCompile(`AXX-E0821`)},
+	// A When after a Then (AXX-E0837, since nimbusxr/axx#97; a hint before).
+	{"checked several behaviors in one scenario", regexp.MustCompile(`AXX-E0837`)},
 }
 
 // StumbleNames lists the stumble kinds in report order.
