@@ -134,3 +134,21 @@ func TestLearningAxx(t *testing.T) {
 		t.Errorf("learning: %d requests, %d tokens", w.LearnRequests, w.LearnTokens)
 	}
 }
+
+// axx's warnings in its output count as stumbles, like a scenario that checks
+// several behaviors in turn (AXX-E0837).
+func TestAnalyzeTrialCountsWarnings(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "agent", "trajectory.json")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(`{"steps":[{"source":"agent","tool_calls":[
+	  {"tool_call_id":"1","function_name":"bash","arguments":{"command":"axx validate"}}],
+	 "observation":{"results":[{"source_call_id":"1","content":"features/a.feature:9: warning: When the request is executed\n  a When after a Then: this scenario checks 2 behaviors in turn [AXX-E0837]"}]}}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if n := analyzeTrial(dir, 0).stumbles["checked several behaviors in one scenario"]; n != 1 {
+		t.Errorf("stumbles: %d, want 1", n)
+	}
+}
