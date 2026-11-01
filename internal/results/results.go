@@ -128,6 +128,11 @@ func readRateLimit(dir string) RateLimit {
 // (NonZeroAgentExitCodeError, AgentTimeoutError), which are scored.
 var NotScored = []string{"RuntimeError", "EnvironmentStartTimeoutError", "HealthcheckError", "ApiRateLimitError"}
 
+// outOfMemory is the exception of a trial whose agent the kernel killed
+// (exit 137, SIGKILL): the machine running the trials ran out of memory,
+// which says nothing about the agent either. It is not scored.
+const outOfMemory = "OutOfMemory"
+
 func notScored(exceptionType string) bool {
 	for _, t := range NotScored {
 		if t == exceptionType {
@@ -330,7 +335,8 @@ type trialResult struct {
 		Rewards map[string]float64 `json:"rewards"`
 	} `json:"verifier_result"`
 	ExceptionInfo *struct {
-		Type string `json:"exception_type"`
+		Type    string `json:"exception_type"`
+		Message string `json:"exception_message"`
 	} `json:"exception_info"`
 	AgentExecution *struct {
 		StartedAt  time.Time `json:"started_at"`
@@ -417,11 +423,14 @@ func FromHarborJob(dir string, budgets map[string]float64) (map[string]*Result, 
 		exception := ""
 		if tr.ExceptionInfo != nil {
 			exception = tr.ExceptionInfo.Type
+			if strings.Contains(tr.ExceptionInfo.Message, "(exit 137)") {
+				exception = outOfMemory
+			}
 		}
 		if exception == "AgentTimeoutError" && budget > 0 && working >= 0 && working < budget {
 			exception = waitedOut
 		}
-		if exception != "" && (notScored(exception) || exception == waitedOut) {
+		if exception != "" && (notScored(exception) || exception == waitedOut || exception == outOfMemory) {
 			if r.Unscored == nil {
 				r.Unscored = map[string]int{}
 			}

@@ -126,7 +126,7 @@ func cmdRun(args []string) error {
 		}
 		defer mp.stop()
 	}
-	jobs := map[string]string{}
+	jobs := map[string][]string{}
 	var skipped []results.Skipped
 	var failed []string // conditions whose harbor run failed
 	for _, n := range names {
@@ -162,7 +162,7 @@ func cmdRun(args []string) error {
 			hargs = append(hargs, "--agent-timeout-multiplier", agentTimeoutMultiplier)
 		}
 		fmt.Printf("== condition %s: %s %s\n", n, *harbor, strings.Join(hargs, " "))
-		jobs[n] = filepath.Join(*jobsDir, jobName)
+		jobs[n] = []string{filepath.Join(*jobsDir, jobName)}
 		if *dry {
 			continue
 		}
@@ -174,7 +174,7 @@ func cmdRun(args []string) error {
 			failed = append(failed, n)
 		}
 		if mp != nil {
-			if err := mp.writeWaits(jobs[n]); err != nil {
+			if err := mp.writeWaits(jobs[n][0]); err != nil {
 				return fmt.Errorf("writing the rate-limit waits of condition %s: %w", n, err)
 			}
 		}

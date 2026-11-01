@@ -25,7 +25,7 @@ func cmdReport(args []string) error {
 	date := fs.String("date", time.Now().UTC().Format("2006-01-02"), "the run's date")
 	out := fs.String("out", "", "result file without extension (default results/<date>-<agent>)")
 	var jobs multiFlag
-	fs.Var(&jobs, "job", "CONDITION=HARBOR_JOB_DIR (repeatable, in column order)")
+	fs.Var(&jobs, "job", "CONDITION=HARBOR_JOB_DIR (repeatable, in column order; a condition named again adds a job whose trials replace the earlier jobs' trials of the same tasks, as when trials the machine cut off run again)")
 	_ = fs.Parse(args)
 	if *agent == "" || len(jobs) == 0 {
 		return exitError{2, "--agent and at least one --job CONDITION=DIR are required"}
@@ -35,18 +35,20 @@ func cmdReport(args []string) error {
 		return err
 	}
 	var names []string
-	dirs := map[string]string{}
+	dirs := map[string][]string{}
 	for _, j := range jobs {
 		c, d, ok := strings.Cut(j, "=")
 		if !ok {
 			return fmt.Errorf("--job %q: want CONDITION=DIR", j)
 		}
-		names = append(names, c)
-		dirs[c] = d
+		if _, seen := dirs[c]; !seen {
+			names = append(names, c)
+		}
+		dirs[c] = append(dirs[c], d)
 	}
 	var skipped []results.Skipped
-	for _, d := range dirs {
-		skipped = append(skipped, datasetSkipped(d)...)
+	for _, ds := range dirs {
+		skipped = append(skipped, datasetSkipped(ds[0])...)
 	}
 	f, err := buildResults(dir, *agent, *model, *axxVersion, *date, names, dirs, skipped)
 	if err != nil {
@@ -97,7 +99,7 @@ func datasetSkipped(jobDir string) []results.Skipped {
 	return nil
 }
 
-func buildResults(evalsDir, agent, model, axxVersion, date string, conditions []string, jobs map[string]string, skipped []results.Skipped) (*results.File, error) {
+func buildResults(evalsDir, agent, model, axxVersion, date string, conditions []string, jobs map[string][]string, skipped []results.Skipped) (*results.File, error) {
 	tasks, err := spec.LoadTasks(filepath.Join(evalsDir, "tasks"))
 	if err != nil {
 		return nil, err
@@ -114,9 +116,16 @@ func buildResults(evalsDir, agent, model, axxVersion, date string, conditions []
 	}
 	byTask := map[string]*results.Task{}
 	for _, c := range conditions {
-		res, err := results.FromHarborJob(jobs[c], budgets)
-		if err != nil {
-			return nil, fmt.Errorf("condition %s: %w", c, err)
+		res := map[string]*results.Result{}
+		// A later job's trials of a task replace the earlier jobs' trials of it.
+		for _, d := range jobs[c] {
+			r, err := results.FromHarborJob(d, budgets)
+			if err != nil {
+				return nil, fmt.Errorf("condition %s: %w", c, err)
+			}
+			for id, tr := range r {
+				res[id] = tr
+			}
 		}
 		for id, r := range res {
 			t := byTask[id]
