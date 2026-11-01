@@ -192,7 +192,7 @@ const hostGateway = "      - host.docker.internal:host-gateway\n"
 
 // blockedHostsFile is where a task's image lists the hosts its condition
 // blocks; the runner's OpenCode agent (agents/evals_opencode.py) adds them to
-// /etc/hosts once Harbor has installed it, since the install needs GitHub.
+// /etc/hosts as its run starts, since Harbor's install of it needs GitHub.
 const blockedHostsFile = "/etc/evals/blocked-hosts"
 
 // blockHosts writes the hosts into the task's image (environment/blocked-hosts,

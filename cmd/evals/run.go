@@ -298,8 +298,8 @@ func shardTasks(dir, shard string, only []string) ([]string, error) {
 }
 
 // blockingAgent is Harbor's OpenCode agent as the evals run it under a
-// condition that blocks hosts (agents/evals_opencode.py): it blocks them once
-// Harbor has installed it.
+// condition that blocks hosts (agents/evals_opencode.py): it blocks them as its
+// run starts, after Harbor has installed it.
 const blockingAgent = "evals_opencode:EvalsOpenCode"
 
 // harborAgent is the agent Harbor runs for a condition: OpenCode blocks a

@@ -37,7 +37,7 @@ The ids are pinned (never an alias such as `~google/gemini-pro-latest`), so runs
 | `cmd/evals/` | The runner: build images, prepare conditions, run Harbor, report, compare. |
 | `images/` | The Docker images the tasks build on, and `images/base/axx.env`: the axx release under test. |
 | `conditions.toml`, `conditions/mcp.json` | The conditions. |
-| `agents/` | `evals_opencode.py`: Harbor's OpenCode agent, blocking a condition's hosts once installed. |
+| `agents/` | `evals_opencode.py`: Harbor's OpenCode agent, blocking a condition's hosts as its run starts. |
 | `results/` | Result files (`.json` and `.md`) and each model's baseline. |
 | `testdata/negative/` | Weak or cheating answers, each of which must get reward 0. |
 
@@ -190,9 +190,10 @@ Harbor task): `harbor run -p tasks/sql-manifest-import -a oracle`.
   agent (`blocked` in `conditions.toml`: they resolve to its container's loopback, so a fetch
   fails at once), as organizations that block them have it. The Go module proxy, which axx
   prepares packs from, stays reachable. The agent has only what axx itself tells it. The hosts
-  are blocked once Harbor has installed the agent, whose install needs GitHub: the runner runs
-  OpenCode as `agents/evals_opencode.py` (Harbor's OpenCode agent, which adds the image's
-  `/etc/evals/blocked-hosts` to `/etc/hosts` after its install) for such a condition.
+  are blocked as the agent's run starts, after Harbor's install of the agent, which needs GitHub:
+  the runner runs OpenCode as `agents/evals_opencode.py` for such a condition (Harbor's OpenCode
+  agent, which first adds the image's `/etc/evals/blocked-hosts` to `/etc/hosts` and checks the
+  hosts resolve to the loopback).
 - **MCP**: `axx mcp`, registered through Harbor's `--mcp-config conditions/mcp.json` (a
   Claude-style `.mcp.json`), which Harbor turns into each agent's own MCP configuration (for
   OpenCode, the `mcp` section of its `opencode.json`).
