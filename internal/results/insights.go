@@ -31,6 +31,15 @@ type Work struct {
 	// token): the cost of axx that writing tests without it does not have.
 	LearnRequests int `json:"learnRequests,omitempty"`
 	LearnTokens   int `json:"learnTokens,omitempty"`
+	// SiteFetches are the agent's fetches of axx's website (a web fetch, or
+	// curl or wget in a shell); SourceReads, its reads of axx's own source
+	// (its repository on GitHub, or the module Go downloaded for its packs).
+	// Everything an agent needs should come from axx itself.
+	SiteFetches int `json:"siteFetches,omitempty"`
+	SourceReads int `json:"sourceReads,omitempty"`
+	// PeakContext is the most tokens one model request of the trial sent:
+	// what the agent had to hold to finish. Summed over trials like the rest.
+	PeakContext int `json:"peakContext,omitempty"`
 }
 
 func (w *Work) add(o Work) {
@@ -43,6 +52,9 @@ func (w *Work) add(o Work) {
 	w.Lines = append(w.Lines, o.Lines...)
 	w.LearnRequests += o.LearnRequests
 	w.LearnTokens += o.LearnTokens
+	w.SiteFetches += o.SiteFetches
+	w.SourceReads += o.SourceReads
+	w.PeakContext += o.PeakContext
 }
 
 // Stumble counts one kind of trouble the agents ran into with axx: the
@@ -170,7 +182,10 @@ type verifyReport struct {
 // trajectory is the part of Harbor's ATIF transcript the report reads.
 type trajectory struct {
 	Steps []struct {
-		Source    string `json:"source"`
+		Source  string `json:"source"`
+		Metrics *struct {
+			PromptTokens int `json:"prompt_tokens"`
+		} `json:"metrics"`
 		ToolCalls []struct {
 			ID        string          `json:"tool_call_id"`
 			Function  string          `json:"function_name"`
@@ -191,6 +206,38 @@ var axxCommand = regexp.MustCompile(`(^|[\s;&|(])axx(\s|$)`)
 // task: the steps, the help, the schema, the packs, the setup.
 var learnCommand = regexp.MustCompile(`(^|[\s;&|(])axx\s+(steps|explain|schema|doctor|pack|docs|config|help|version|--help|-h)\b`)
 
+// siteURL is axx's website; sourceURL, axx's repository on GitHub (its pages,
+// raw files and API); sourcePath, axx's source on disk: the module Go
+// downloaded to build a project's packs, or a build's generated source.
+var (
+	siteURL    = regexp.MustCompile(`axx\.nimbusxr\.us`)
+	sourceURL  = regexp.MustCompile(`(github\.com|githubusercontent\.com|api\.github\.com/repos)/nimbusxr/axx([/?#@.\s"']|$)`)
+	sourcePath = regexp.MustCompile(`github\.com/nimbusxr/axx@|/axx/builds/`)
+)
+
+// lookup sorts a tool call that looks something up outside the project:
+// axx's website, or axx's own source.
+func lookup(fn string, args json.RawMessage) (site, source bool) {
+	var a struct {
+		Command  string `json:"command"`
+		URL      string `json:"url"`
+		FilePath string `json:"filePath"`
+		Path     string `json:"path"`
+		Pattern  string `json:"pattern"`
+	}
+	_ = json.Unmarshal(args, &a)
+	switch fn {
+	case "webfetch":
+		return siteURL.MatchString(a.URL), sourceURL.MatchString(a.URL)
+	case "bash":
+		fetch := strings.Contains(a.Command, "curl") || strings.Contains(a.Command, "wget")
+		return fetch && siteURL.MatchString(a.Command), (fetch && sourceURL.MatchString(a.Command)) || sourcePath.MatchString(a.Command)
+	case "read", "grep", "glob", "list":
+		return false, sourcePath.MatchString(a.FilePath + " " + a.Path + " " + a.Pattern)
+	}
+	return false, false
+}
+
 // learning reports whether a tool call is the agent learning axx: reading
 // its steps, docs, skills or help.
 func learning(fn string, args json.RawMessage) bool {
@@ -208,7 +255,7 @@ func learning(fn string, args json.RawMessage) bool {
 	case "read":
 		return strings.Contains(a.FilePath, "/skills/axx-")
 	case "bash":
-		return learnCommand.MatchString(a.Command)
+		return learnCommand.MatchString(a.Command) || siteURL.MatchString(a.Command)
 	}
 	return false
 }
@@ -225,6 +272,9 @@ func analyzeTrial(dir string, requests int) trialInsight {
 			for _, s := range t.Steps {
 				if s.Source == "agent" {
 					turns++
+				}
+				if s.Metrics != nil && s.Metrics.PromptTokens > in.work.PeakContext {
+					in.work.PeakContext = s.Metrics.PromptTokens
 				}
 				outputs := map[string]string{}
 				if s.Observation != nil {
@@ -244,6 +294,11 @@ func analyzeTrial(dir string, requests int) trialInsight {
 				}
 				for _, tc := range s.ToolCalls {
 					in.work.ToolCalls++
+					if site, source := lookup(tc.Function, tc.Arguments); site {
+						in.work.SiteFetches++
+					} else if source {
+						in.work.SourceReads++
+					}
 					isAxx := false
 					switch {
 					case strings.HasPrefix(tc.Function, "axx_"):

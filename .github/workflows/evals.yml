@@ -17,6 +17,7 @@ on:
         type: choice
         options:
           - openrouter/openai/gpt-6-luna
+          - openrouter/anthropic/claude-haiku-5.5
           - openrouter/anthropic/claude-sonnet-5.5
           - openrouter/openai/gpt-6.1-sol
           - openrouter/google/gemini-3.1-pro-preview
@@ -25,7 +26,7 @@ on:
       conditions:
         description: Comma-separated conditions from conditions.toml
         type: string
-        default: none,skills,mcp,both,plain
+        default: none,skills,mcp,both,plain,nosite
       tasks:
         description: Comma-separated task ids (empty for all)
         type: string

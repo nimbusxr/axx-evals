@@ -27,13 +27,21 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/verifier/evals-verify ./cmd/evals-verify
 
 # The axx under test: a release, checked against its checksum (images/base/axx.env,
-# which `go run ./cmd/evals images` passes in).
+# which `go run ./cmd/evals images` passes in); or, with `images --axx-source`, the
+# axx of a checkout (images/base/axx-dev: its binary, and a module proxy serving
+# its source as axx's module, which a project's packs are built from).
 FROM ${GO_IMAGE} AS axx
 ARG AXX_VERSION
 ARG AXX_SHA256_AMD64
 ARG AXX_SHA256_ARM64
 ARG TARGETARCH
+COPY images/base/axx-dev/ /tmp/axx-dev/
 RUN set -eu; \
+    mkdir -p /out/proxy; \
+    if [ -f /tmp/axx-dev/axx ]; then \
+      cp /tmp/axx-dev/axx /out/axx && cp -R /tmp/axx-dev/proxy/. /out/proxy/; \
+      exit 0; \
+    fi; \
     case "$TARGETARCH" in \
       amd64) sum="$AXX_SHA256_AMD64" ;; \
       arm64) sum="$AXX_SHA256_ARM64" ;; \
@@ -54,6 +62,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY --from=axx /out/axx /usr/local/bin/
+# A checkout's axx module, for the builds of a project's packs (empty for a
+# release, which they fetch from the public module proxy).
+COPY --from=axx /out/proxy /opt/axx-dev/proxy
+ARG AXX_GOPROXY=""
+ARG AXX_GONOSUMDB=""
+ENV GOPROXY=${AXX_GOPROXY} GONOSUMDB=${AXX_GONOSUMDB}
 COPY --from=go /out/parcels /usr/local/bin/
 # Go for tests without axx (the plain condition), as Node.js and Python are.
 COPY --from=go /usr/local/go /usr/local/go

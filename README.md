@@ -20,6 +20,7 @@ where axx puts them: `AGENTS.md`, the skills in `.agents/skills` and the MCP ser
 | `google/gemini-3.1-pro-preview` | Google's newest Pro |
 | `z-ai/glm-5.3` | a strong open-weight coding model |
 | `openai/gpt-6-luna` | a small model: the aids should help weak models most; also the cheap shakedown |
+| `anthropic/claude-haiku-5.5` | Anthropic's small model, at Luna's price: the other side of the small-model bar |
 
 The ids are pinned (never an alias such as `~google/gemini-pro-latest`), so runs stay comparable.
 
@@ -51,6 +52,7 @@ The ids are pinned (never an alias such as `~google/gemini-pro-latest`), so runs
 | `kafka-registered-event` | rest, kafka | an Avro `ParcelRegistered` event is published, keyed and filled correctly | `event-not-published`, `event-weight-in-kilograms` | `events-topic-gzip`, `json-properties-reordered` |
 | `fix-broken-feature` | | repair a feature with a wrong step text and a wrong expectation, keeping its scenarios | `import-wrong-source`, `import-accepts-overweight` | `import-takes-seconds`, `json-properties-reordered` |
 | `init-first-feature` | rest | `axx init` a bare repository, make `axx run` start the service, write the first feature | `wrong-status-on-duplicate`, `wrong-status-on-create` | `json-properties-reordered` |
+| `init-pick-packs` | rest, kafka | `axx init` a bare repository and find the packs its criteria need, which `axx init` doesn't add: the manifest import (the database) and the `ParcelRegistered` event (Kafka) | `import-drops-postcode`, `import-leaves-line-pending`, `import-wrong-source`, `import-accepts-overweight`, `event-not-published`, `event-weight-in-kilograms` | `json-properties-reordered`, `import-takes-seconds`, `events-topic-gzip` |
 | `parallel-unique-data` | rest | a shop's parcel list, correct under 16 workers in random order, plus an `axx lint` rule that bites | `list-ignores-sender-filter`, `delete-not-removed` | `json-properties-reordered` |
 | `registration-end-to-end` | rest, kafka | a registration followed through every service: the address check (once, with the API key), the stored parcel and its zone, the undeliverable refusal, the `ParcelRegistered` event | `wrong-status-on-create`, `skips-address-check`, `address-check-without-api-key`, `ignores-undeliverable`, `event-not-published`, `event-weight-in-kilograms` | `json-properties-reordered`, `events-topic-gzip` |
 | `change-rules` | rest | no change or cancellation once a depot picked the parcel up (a status only the database holds, so the tests seed it), the refused change not stored, a registered parcel still changeable | `change-after-pickup`, `refused-change-stored`, `cancel-after-pickup`, `update-not-persisted` | `json-properties-reordered` |
@@ -174,6 +176,7 @@ Harbor task): `harbor run -p tasks/sql-manifest-import -a oracle`.
 | `mcp` | yes | yes | | yes |
 | `both` | yes | yes | yes | yes |
 | `plain` | no | | | |
+| `nosite` | yes | | | |
 
 - **AGENTS.md section**: the section `axx init` writes (`project-setup finish --agents-md` runs
   `axx init` in a scratch project and keeps its `AGENTS.md`). Every initialized axx project has
@@ -182,6 +185,10 @@ Harbor task): `harbor run -p tasks/sql-manifest-import -a oracle`.
   for OpenCode, Codex, Cursor, Gemini CLI and Copilot). A repository not set up for axx yet
   (`init-first-feature`) has no packs for the project's skills, so it gets them as a developer
   has them before `axx init`: `axx skills install --scope user`, in `~/.agents/skills`.
+- **nosite**: the bare project, with axx's website, GitHub and pkg.go.dev out of reach from the
+  agent's container (`blocked` in `conditions.toml`: they resolve to its own loopback, so a fetch
+  fails at once), as organizations that block them have it. The Go module proxy, which axx
+  prepares packs from, stays reachable. The agent has only what axx itself tells it.
 - **MCP**: `axx mcp`, registered through Harbor's `--mcp-config conditions/mcp.json` (a
   Claude-style `.mcp.json`), which Harbor turns into each agent's own MCP configuration (for
   OpenCode, the `mcp` section of its `opencode.json`).
@@ -221,6 +228,18 @@ rest, as for every task.
 
 The other sidecars (PostgreSQL, Kafka, the Schema Registry) use the images of `app/compose.yaml`;
 `go run ./cmd/evals sync` copies them into the tasks' compose files.
+
+**An axx not released yet.** `--axx-source <checkout>` (on `images` and `run`) tests the axx of
+a local checkout instead of the release: the runner builds its Linux binary at a pseudo-version
+of the next release (its last commit's time, its files' hash) and serves the checkout as axx's
+module from a Go module proxy in the image (`images/base/axx-dev`, `GOPROXY`), so axx prepares a
+project's packs from it as a release prepares them from the public proxy. A change to axx is
+measured before it ships:
+
+```sh
+infisical run -- go run ./cmd/evals run --axx-source ../axx --agent opencode \
+  --model openrouter/anthropic/claude-haiku-5.5 --ak version=1.18.34
+```
 
 To test another axx release, set `AXX_VERSION` and the two `AXX_SHA256_*` lines in
 `images/base/axx.env` from the release's `checksums.txt`, then rebuild the images and run the
@@ -313,8 +332,10 @@ from the trials (their results, transcripts, verifier reports and the files the 
 - **Scores by task**: the task x condition table, the core score and the score, and the suites
   that passed every core check but missed an axx-only one, where the agent aids show.
 - **How the agents worked**: per trial, tool calls, model requests, axx commands, axx MCP tool
-  calls, skills loaded, web pages fetched, the requests and tokens spent learning axx, agent
-  minutes, input tokens, lines written and cost.
+  calls, skills loaded, web pages fetched (and of them axx's website), reads of axx's own source
+  (its repository, or the module Go downloaded for its packs), the requests and tokens spent
+  learning axx, agent minutes, input tokens, the peak context (the most tokens one request
+  sent), lines written and cost.
 - **Where the agents stumbled**: troubles in the output of the agents' axx commands and MCP tools
   (a service used before it was registered, a seed the database rejected, a property set inside
   an object the payload lacks, requests numbered out of order, undefined step text, unknown step
@@ -341,7 +362,7 @@ from the trials (their results, transcripts, verifier reports and the files the 
        "mutantsCaught": 9, "mutantsTotal": 9,
        "agentSeconds": 238.6, "rateLimitWaitSeconds": 412.0, "rateLimitRefused": 7,
        "models": {"openai/gpt-6-luna": 71}, "costUsd": 0.0389, "inputTokens": 1536000, "outputTokens": 9640,
-       "work": {"toolCalls": 156, "modelRequests": 71, "axxCommands": 87, "mcpCalls": 0, "skillsLoaded": 0, "docsFetched": 4, "lines": [59, 55, 61], "learnRequests": 15, "learnTokens": 54000},
+       "work": {"toolCalls": 156, "modelRequests": 71, "axxCommands": 87, "mcpCalls": 0, "skillsLoaded": 0, "docsFetched": 4, "lines": [59, 55, 61], "learnRequests": 15, "learnTokens": 54000, "siteFetches": 4, "sourceReads": 0, "peakContext": 98000},
        "stumbles": {"used a service before registering it": {"trials": 1, "times": 3}},
        "misses": [{"trial": "rest-crud-happy-path__8BLohbN", "why": "fewer scenarios than the task has criteria", "core": false,
                    "detail": "at least 3 passing scenarios: 1 passed"}]}}}
@@ -358,7 +379,8 @@ agent's own exception, `unscored` (by exception type) those left out. `agentSeco
 agents' working time, the rate limit's waits (`rateLimitWaitSeconds`, `rateLimitRefused`) left out;
 `models` counts the model requests by model. `work` is what the agents did (`lines`: the lines of
 the files each trial added or changed; `learnRequests` and `learnTokens`: the model requests spent
-learning axx and the tokens they read), `stumbles` the troubles in axx's output by kind, and
+learning axx and the tokens they read; `siteFetches`, `sourceReads`: fetches of axx's website
+and reads of its source; `peakContext`: each trial's largest request, summed), `stumbles` the troubles in axx's output by kind, and
 `misses` every scored trial without reward 1 and the first check it failed.
 
 The **baseline** is a result file promoted as-is, one per model: `results/baseline-<model>.json`,

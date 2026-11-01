@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -61,6 +62,33 @@ func TestShardTasksCoverEveryTaskOnce(t *testing.T) {
 	for _, bad := range []string{"0/4", "5/4", "4", "a/b"} {
 		if _, err := shardTasks(root, bad, nil); err == nil {
 			t.Errorf("--shard %s was not refused", bad)
+		}
+	}
+}
+
+// TestBlockedHosts: a condition's blocked hosts resolve to the agent's own
+// loopback, and the host gateway the rate-limit proxy needs stays.
+func TestBlockedHosts(t *testing.T) {
+	root := filepath.Join("..", "..")
+	conds, err := loadConditions(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, ok := conds["nosite"]
+	if !ok || !slices.Contains(c.Blocked, "axx.nimbusxr.us") {
+		t.Fatalf("nosite blocks %v", c.Blocked)
+	}
+	out := t.TempDir()
+	if _, _, err := prepareDataset(root, c, out, []string{"rest-crud-happy-path"}, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(out, "rest-crud-happy-path", "environment", "docker-compose.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{hostGateway, "      - axx.nimbusxr.us:127.0.0.1\n", "      - raw.githubusercontent.com:127.0.0.1\n"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("compose file lacks %q:\n%s", want, b)
 		}
 	}
 }

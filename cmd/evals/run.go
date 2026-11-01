@@ -48,13 +48,14 @@ func cmdRun(args []string) error {
 	agent := fs.String("agent", "", "Harbor agent: opencode, the one the evals compare (oracle and nop check the plumbing)")
 	model := fs.String("model", "", "model for the agent, e.g. openrouter/openai/gpt-6-luna")
 	smallModel := fs.String("small-model", "", "OpenCode's small model (session titles and other side tasks): default the model under test; auto leaves OpenCode's choice")
-	condList := fs.String("conditions", "none,skills,mcp,both,plain", "conditions from conditions.toml")
+	condList := fs.String("conditions", "none,skills,mcp,both,plain,nosite", "conditions from conditions.toml")
 	only := fs.String("tasks", "", "comma-separated task ids (default: all)")
 	shard := fs.String("shard", "", "run one part of the tasks, i/n: the tasks whose place in name order is i modulo n (CI splits a run across jobs this way)")
 	attempts := fs.Int("attempts", 1, "trials per task and condition (harbor -k)")
 	concurrency := fs.Int("concurrency", 2, "concurrent trials (harbor -n); each trial runs its own databases")
 	pending := fs.Bool("include-pending", false, "also run tasks whose required packs are missing")
 	skipImages := fs.Bool("skip-images", false, "do not rebuild the images")
+	axxSource := fs.String("axx-source", "", "test the axx of this checkout instead of the release images/base/axx.env names")
 	harbor := fs.String("harbor", "harbor", "the harbor command")
 	jobsDir := fs.String("jobs-dir", "", "where Harbor writes jobs (default .work/jobs)")
 	out := fs.String("out", "", "result file without extension (default results/<date>-<agent>)")
@@ -88,7 +89,7 @@ func cmdRun(args []string) error {
 		}
 	}
 	if !*skipImages && !*dry {
-		if err := buildImages(dir, false); err != nil {
+		if err := buildImages(dir, false, *axxSource); err != nil {
 			return err
 		}
 	}

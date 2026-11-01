@@ -29,6 +29,10 @@ type Condition struct {
 	// Plain runs each task's version without axx (tasks/<id>/plain): no axx in
 	// the environment, tests of the agent's choosing. Tasks without one skip it.
 	Plain bool `toml:"plain"`
+	// Blocked are hosts the agent's container cannot reach (they resolve to
+	// its own loopback, where nothing answers): axx's website, say, as some
+	// organizations block it. Everything axx itself needs stays reachable.
+	Blocked []string `toml:"blocked"`
 }
 
 func loadConditions(evalsDir string) (map[string]Condition, error) {
@@ -139,6 +143,9 @@ func prepareDataset(evalsDir string, c Condition, out string, only []string, pac
 		if err := applyCondition(filepath.Join(dst, "environment", "Dockerfile"), c); err != nil {
 			return nil, nil, err
 		}
+		if err := blockHosts(filepath.Join(dst, "environment", "docker-compose.yaml"), c.Blocked); err != nil {
+			return nil, nil, err
+		}
 		included = append(included, t.ID())
 	}
 	for _, id := range only {
@@ -176,6 +183,32 @@ func applyCondition(dockerfile string, c Condition) error {
 	}
 	s = strings.Replace(s, conditionMarker+"\n", fmt.Sprintf("# condition: %s\n%s\n", c.Name, line), 1)
 	return os.WriteFile(dockerfile, []byte(s), 0o644)
+}
+
+// hostGateway is the line of a task's compose file (`evals sync`) that lets
+// the agent's container reach the host, where the rate-limit proxy listens.
+const hostGateway = "      - host.docker.internal:host-gateway\n"
+
+// blockHosts makes the hosts unreachable from the agent's container (main in
+// the task's compose file): they resolve to its loopback.
+func blockHosts(compose string, hosts []string) error {
+	if len(hosts) == 0 {
+		return nil
+	}
+	b, err := os.ReadFile(compose)
+	if err != nil {
+		return err
+	}
+	s := string(b)
+	if !strings.Contains(s, hostGateway) {
+		return fmt.Errorf("%s: no %q line (run `evals sync`)", compose, strings.TrimSpace(hostGateway))
+	}
+	var lines strings.Builder
+	for _, h := range hosts {
+		fmt.Fprintf(&lines, "      - %s:127.0.0.1\n", h)
+	}
+	s = strings.Replace(s, hostGateway, hostGateway+lines.String(), 1)
+	return os.WriteFile(compose, []byte(s), 0o644)
 }
 
 func copyTree(src, dst string) error {

@@ -1,5 +1,5 @@
 # The agent aids each eval condition provides. `go run ./cmd/evals run` runs every
-# task once per condition (default: none, skills, mcp, both, plain).
+# task once per condition (default: none, skills, mcp, both, plain, nosite).
 #
 #   agents_md  the AGENTS.md section `axx init` writes (every initialized axx project has it)
 #   skills     `axx skills install` in the project (.agents/skills); in a repository
@@ -7,6 +7,7 @@
 #   mcp        `axx mcp` registered with the agent (Harbor's --mcp-config conditions/mcp.json,
 #              which Harbor turns into each agent's own MCP configuration)
 #   plain      the task without axx at all (tasks/<id>/plain), to compare with
+#   blocked    hosts the agent cannot reach (they resolve to its own loopback)
 
 [none]
 description = "The bare project: no skills, no MCP server, no AGENTS.md section."
@@ -30,3 +31,16 @@ mcp = true
 [plain]
 description = "Without axx: no axx in the environment, no axx project; the agent writes the tests with tools of its choice, run by ./acceptance-tests.sh. Only tasks with a version without axx (tasks/<id>/plain) run."
 plain = true
+
+[nosite]
+description = "The bare project, with axx's website, its source on GitHub and pkg.go.dev out of reach (as organizations that block them have it): the agent has only what axx itself tells it."
+blocked = [
+  "axx.nimbusxr.us",
+  "github.com",
+  "www.github.com",
+  "api.github.com",
+  "raw.githubusercontent.com",
+  "objects.githubusercontent.com",
+  "codeload.github.com",
+  "pkg.go.dev",
+]
