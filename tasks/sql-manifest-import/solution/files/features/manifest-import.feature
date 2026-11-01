@@ -22,7 +22,7 @@ Feature: Manifest import
       | name     | Mia Import     |
       | street   | Hafenstrasse 1 |
       | city     | Hamburg        |
-      | postcode | 20457          |
+      | postcode | "20457"        |
       | country  | DE             |
     And the 1st row details property for the selection json properties are:
       | source     | manifest            |

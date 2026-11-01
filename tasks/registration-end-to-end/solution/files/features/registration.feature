@@ -24,7 +24,7 @@ Feature: Registering a parcel end to end
       | reference          | PX-E2E-STORED-001 |
       | sender             | shop-e2e-stored   |
       | recipient.city     | Lyon              |
-      | recipient.postcode | 69002             |
+      | recipient.postcode | "69002"           |
       | recipient.country  | FR                |
     And a 2nd ordered GET request to /api/parcels/PX-E2E-STORED-001
     When the request is executed
@@ -41,7 +41,7 @@ Feature: Registering a parcel end to end
     And the request payload properties are:
       | reference          | PX-E2E-CHECK-001 |
       | sender             | shop-e2e-check   |
-      | recipient.postcode | 10318            |
+      | recipient.postcode | "10318"          |
       | recipient.country  | DE               |
     When the request is executed
     Then the response status code is 201
@@ -57,7 +57,7 @@ Feature: Registering a parcel end to end
     And the request payload properties are:
       | reference          | PX-E2E-NODELIVERY-001 |
       | sender             | shop-e2e-nodelivery   |
-      | recipient.postcode | 99930                 |
+      | recipient.postcode | "99930"               |
       | recipient.country  | DE                    |
     And a 2nd ordered GET request to /api/parcels/PX-E2E-NODELIVERY-001
     When the request is executed
@@ -75,7 +75,7 @@ Feature: Registering a parcel end to end
       | reference          | PX-E2E-EVENT-001 |
       | sender             | shop-e2e-event   |
       | weightGrams        | 3150             |
-      | recipient.postcode | 04109            |
+      | recipient.postcode | "04109"          |
       | recipient.country  | DE               |
     When the request is executed
     Then the response status code is 201

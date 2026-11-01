@@ -18,7 +18,7 @@ Feature: Manifest import
       | status        | REGISTERED         |
     And the selection has 1 row
     And the 1st row recipient property for the selection json properties are:
-      | postcode | 20457 |
+      | postcode | "20457" |
     And the 1st row details property for the selection json properties are:
       | source | manifest |
 
