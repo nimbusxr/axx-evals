@@ -29,9 +29,10 @@ type Condition struct {
 	// Plain runs each task's version without axx (tasks/<id>/plain): no axx in
 	// the environment, tests of the agent's choosing. Tasks without one skip it.
 	Plain bool `toml:"plain"`
-	// Blocked are hosts the agent's container cannot reach (they resolve to
-	// its own loopback, where nothing answers): axx's website, say, as some
-	// organizations block it. Everything axx itself needs stays reachable.
+	// Blocked are hosts the agent cannot reach once it is installed (they
+	// resolve to its container's loopback, where nothing answers): axx's
+	// website, say, as some organizations block it. Everything axx itself
+	// needs stays reachable.
 	Blocked []string `toml:"blocked"`
 }
 
@@ -143,7 +144,7 @@ func prepareDataset(evalsDir string, c Condition, out string, only []string, pac
 		if err := applyCondition(filepath.Join(dst, "environment", "Dockerfile"), c); err != nil {
 			return nil, nil, err
 		}
-		if err := blockHosts(filepath.Join(dst, "environment", "docker-compose.yaml"), c.Blocked); err != nil {
+		if err := blockHosts(filepath.Join(dst, "environment"), c.Blocked); err != nil {
 			return nil, nil, err
 		}
 		included = append(included, t.ID())
@@ -189,26 +190,31 @@ func applyCondition(dockerfile string, c Condition) error {
 // the agent's container reach the host, where the rate-limit proxy listens.
 const hostGateway = "      - host.docker.internal:host-gateway\n"
 
-// blockHosts makes the hosts unreachable from the agent's container (main in
-// the task's compose file): they resolve to its loopback.
-func blockHosts(compose string, hosts []string) error {
+// blockedHostsFile is where a task's image lists the hosts its condition
+// blocks; the runner's OpenCode agent (agents/evals_opencode.py) adds them to
+// /etc/hosts once Harbor has installed it, since the install needs GitHub.
+const blockedHostsFile = "/etc/evals/blocked-hosts"
+
+// blockHosts writes the hosts into the task's image (environment/blocked-hosts,
+// copied to blockedHostsFile), each resolving to the container's loopback.
+func blockHosts(envDir string, hosts []string) error {
 	if len(hosts) == 0 {
 		return nil
 	}
-	b, err := os.ReadFile(compose)
+	var lines strings.Builder
+	for _, h := range hosts {
+		fmt.Fprintf(&lines, "127.0.0.1 %s\n", h)
+	}
+	if err := os.WriteFile(filepath.Join(envDir, "blocked-hosts"), []byte(lines.String()), 0o644); err != nil {
+		return err
+	}
+	dockerfile := filepath.Join(envDir, "Dockerfile")
+	b, err := os.ReadFile(dockerfile)
 	if err != nil {
 		return err
 	}
-	s := string(b)
-	if !strings.Contains(s, hostGateway) {
-		return fmt.Errorf("%s: no %q line (run `evals sync`)", compose, strings.TrimSpace(hostGateway))
-	}
-	var lines strings.Builder
-	for _, h := range hosts {
-		fmt.Fprintf(&lines, "      - %s:127.0.0.1\n", h)
-	}
-	s = strings.Replace(s, hostGateway, hostGateway+lines.String(), 1)
-	return os.WriteFile(compose, []byte(s), 0o644)
+	s := strings.TrimRight(string(b), "\n") + "\n# The hosts the condition blocks, once the agent is installed.\nCOPY blocked-hosts " + blockedHostsFile + "\n"
+	return os.WriteFile(dockerfile, []byte(s), 0o644)
 }
 
 func copyTree(src, dst string) error {

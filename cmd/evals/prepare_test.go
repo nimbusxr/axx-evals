@@ -66,8 +66,9 @@ func TestShardTasksCoverEveryTaskOnce(t *testing.T) {
 	}
 }
 
-// TestBlockedHosts: a condition's blocked hosts resolve to the agent's own
-// loopback, and the host gateway the rate-limit proxy needs stays.
+// TestBlockedHosts: a condition's blocked hosts go into the task's image, for
+// the runner's OpenCode agent to block once Harbor has installed it, and the
+// compose file keeps the host gateway the rate-limit proxy needs.
 func TestBlockedHosts(t *testing.T) {
 	root := filepath.Join("..", "..")
 	conds, err := loadConditions(root)
@@ -82,13 +83,23 @@ func TestBlockedHosts(t *testing.T) {
 	if _, _, err := prepareDataset(root, c, out, []string{"rest-crud-happy-path"}, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(out, "rest-crud-happy-path", "environment", "docker-compose.yaml"))
-	if err != nil {
-		t.Fatal(err)
+	env := filepath.Join(out, "rest-crud-happy-path", "environment")
+	hosts, err := os.ReadFile(filepath.Join(env, "blocked-hosts"))
+	if err != nil || !strings.Contains(string(hosts), "127.0.0.1 axx.nimbusxr.us\n") || !strings.Contains(string(hosts), "127.0.0.1 raw.githubusercontent.com\n") {
+		t.Errorf("blocked-hosts: %q %v", hosts, err)
 	}
-	for _, want := range []string{hostGateway, "      - axx.nimbusxr.us:127.0.0.1\n", "      - raw.githubusercontent.com:127.0.0.1\n"} {
-		if !strings.Contains(string(b), want) {
-			t.Errorf("compose file lacks %q:\n%s", want, b)
-		}
+	df, _ := os.ReadFile(filepath.Join(env, "Dockerfile"))
+	if !strings.HasSuffix(string(df), "COPY blocked-hosts "+blockedHostsFile+"\n") {
+		t.Errorf("Dockerfile:\n%s", df)
+	}
+	compose, _ := os.ReadFile(filepath.Join(env, "docker-compose.yaml"))
+	if !strings.Contains(string(compose), hostGateway) || strings.Contains(string(compose), "127.0.0.1") {
+		t.Errorf("compose file:\n%s", compose)
+	}
+	if got := harborAgent("opencode", c); got != blockingAgent {
+		t.Errorf("agent for nosite: %s", got)
+	}
+	if got := harborAgent("opencode", conds["none"]); got != "opencode" {
+		t.Errorf("agent for none: %s", got)
 	}
 }

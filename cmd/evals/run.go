@@ -88,6 +88,7 @@ func cmdRun(args []string) error {
 			return fmt.Errorf("unknown condition %q (see conditions.toml)", n)
 		}
 	}
+	withAgentsPath(dir)
 	if !*skipImages && !*dry {
 		if err := buildImages(dir, false, *axxSource); err != nil {
 			return err
@@ -138,7 +139,7 @@ func cmdRun(args []string) error {
 		skipped = append(skipped, sk...)
 		jobName := runID + "-" + n
 		hargs := []string{
-			"run", "-p", dataset, "-a", *agent, "-o", *jobsDir, "--job-name", jobName,
+			"run", "-p", dataset, "-a", harborAgent(*agent, c), "-o", *jobsDir, "--job-name", jobName,
 			"-n", strconv.Itoa(*concurrency), "-k", strconv.Itoa(*attempts), "-y",
 		}
 		hargs = append(hargs, "-c", retryConfig)
@@ -294,4 +295,28 @@ func shardTasks(dir, shard string, only []string) ([]string, error) {
 		return nil, fmt.Errorf("--shard %s has no tasks", shard)
 	}
 	return out, nil
+}
+
+// blockingAgent is Harbor's OpenCode agent as the evals run it under a
+// condition that blocks hosts (agents/evals_opencode.py): it blocks them once
+// Harbor has installed it.
+const blockingAgent = "evals_opencode:EvalsOpenCode"
+
+// harborAgent is the agent Harbor runs for a condition: OpenCode blocks a
+// condition's hosts only once installed, since its install needs GitHub.
+func harborAgent(agent string, c Condition) string {
+	if agent == "opencode" && len(c.Blocked) > 0 {
+		return blockingAgent
+	}
+	return agent
+}
+
+// withAgentsPath puts the evals' own Harbor agents (agents/) on Python's
+// path, for Harbor to import blockingAgent.
+func withAgentsPath(evalsDir string) {
+	p := filepath.Join(evalsDir, "agents")
+	if old := os.Getenv("PYTHONPATH"); old != "" {
+		p += string(os.PathListSeparator) + old
+	}
+	_ = os.Setenv("PYTHONPATH", p)
 }
