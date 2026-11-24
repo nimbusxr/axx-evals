@@ -261,11 +261,14 @@ func (f *File) howTheyWorked(b *strings.Builder) {
 		{"axx commands", func(s condStats) float64 { return float64(s.work.AxxCommands) }},
 		{"axx MCP tool calls", func(s condStats) float64 { return float64(s.work.MCPCalls) }},
 		{"Skills loaded", func(s condStats) float64 { return float64(s.work.SkillsLoaded) }},
-		{"Web pages fetched (docs)", func(s condStats) float64 { return float64(s.work.DocsFetched) }},
+		{"Web pages fetched", func(s condStats) float64 { return float64(s.work.DocsFetched) }},
+		{"axx's website fetched", func(s condStats) float64 { return float64(s.work.SiteFetches) }},
+		{"axx's source read", func(s condStats) float64 { return float64(s.work.SourceReads) }},
 		{"Requests learning axx", func(s condStats) float64 { return float64(s.work.LearnRequests) }},
 		{"Tokens read learning axx (thousands)", func(s condStats) float64 { return float64(s.work.LearnTokens) / 1000 }},
 		{"Agent minutes", func(s condStats) float64 { return s.agentSeconds / 60 }},
 		{"Input tokens (thousands)", func(s condStats) float64 { return float64(s.inputTokens) / 1000 }},
+		{"Peak context (thousand tokens)", func(s condStats) float64 { return float64(s.work.PeakContext) / 1000 }},
 	} {
 		row(b, m.name, f.Conditions, func(c string) string {
 			v, ok := st[c].perTrial(m.v(st[c]))

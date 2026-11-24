@@ -23,7 +23,7 @@ Feature: ParcelRegistered events
       | sender             | shop-event-api  |
       | weightGrams        | 2750            |
       | serviceLevel       | EXPRESS         |
-      | recipient.postcode | 04109           |
+      | recipient.postcode | "04109"         |
       | recipient.country  | DE              |
     When the request is executed
     Then the response status code is 201

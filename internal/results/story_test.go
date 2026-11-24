@@ -152,3 +152,44 @@ func TestAnalyzeTrialCountsWarnings(t *testing.T) {
 		t.Errorf("stumbles: %d, want 1", n)
 	}
 }
+
+// Fetching axx's website and reading axx's own source are counted apart from
+// other lookups, and the trial's peak context is its largest request.
+func TestLookups(t *testing.T) {
+	cases := []struct {
+		fn, args     string
+		site, source bool
+	}{
+		{"webfetch", `{"url":"https://axx.nimbusxr.us/guides/install.md"}`, true, false},
+		{"webfetch", `{"url":"https://raw.githubusercontent.com/nimbusxr/axx/main/testdata/steps.json"}`, false, true},
+		{"webfetch", `{"url":"https://github.com/nimbusxr/axx/blob/main/packs/sql/sql.go"}`, false, true},
+		{"webfetch", `{"url":"https://github.com/nimbusxr/axx-evals"}`, false, false},
+		{"bash", `{"command":"curl -s https://axx.nimbusxr.us/llms.txt"}`, true, false},
+		{"bash", `{"command":"grep -rn Oracle /var/cache/evals/axx/go/path/pkg/mod/github.com/nimbusxr/axx@v0.2.26/packs/sql"}`, false, true},
+		{"read", `{"filePath":"/var/cache/evals/axx/builds/abc/src/main.go"}`, false, true},
+		{"grep", `{"pattern":"Oracle","path":"/root/go/pkg/mod/github.com/nimbusxr/axx@v0.2.26"}`, false, true},
+		{"read", `{"filePath":"/app/README.md"}`, false, false},
+		{"bash", `{"command":"echo see https://axx.nimbusxr.us"}`, false, false},
+	}
+	for _, c := range cases {
+		if site, source := lookup(c.fn, json.RawMessage(c.args)); site != c.site || source != c.source {
+			t.Errorf("lookup(%s, %s) = %v, %v", c.fn, c.args, site, source)
+		}
+	}
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "agent"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	traj := `{"steps":[
+	  {"source":"agent","metrics":{"prompt_tokens":5000},"tool_calls":[
+	    {"tool_call_id":"1","function_name":"webfetch","arguments":{"url":"https://axx.nimbusxr.us/"}}]},
+	  {"source":"agent","metrics":{"prompt_tokens":12000},"tool_calls":[
+	    {"tool_call_id":"2","function_name":"webfetch","arguments":{"url":"https://github.com/nimbusxr/axx"}}]},
+	  {"source":"agent","metrics":{"prompt_tokens":9000}}]}`
+	if err := os.WriteFile(filepath.Join(dir, "agent", "trajectory.json"), []byte(traj), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if w := analyzeTrial(dir, 0).work; w.SiteFetches != 1 || w.SourceReads != 1 || w.PeakContext != 12000 {
+		t.Errorf("site %d, source %d, peak %d", w.SiteFetches, w.SourceReads, w.PeakContext)
+	}
+}

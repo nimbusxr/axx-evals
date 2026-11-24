@@ -1,0 +1,37 @@
+schema_version = "1.4"
+
+[task]
+name = "axx-evals/init-pick-packs"
+description = "Set up axx in a repository that has none and write acceptance tests that need packs axx init does not add: the database the importer writes, and the events registration publishes."
+keywords = ["axx", "gherkin", "acceptance-testing", "setup", "init", "packs", "sql", "kafka"]
+
+[metadata]
+title = "axx init a bare repository and find the packs its tests need"
+difficulty = "hard"
+category = "setup"
+requires = ["rest", "kafka"]
+services = ["postgres", "mongo", "address-service", "kafka"]
+workspace = "none"
+
+[verifier]
+timeout_sec = 1200.0
+environment_mode = "separate"
+
+[agent]
+timeout_sec = 1800.0
+
+[environment]
+build_timeout_sec = 900.0
+cpus = 2
+memory_mb = 6144
+
+[environment.healthcheck]
+command = "wait-for-services"
+interval_sec = 2.0
+timeout_sec = 10.0
+start_period_sec = 120.0
+retries = 60
+
+[[artifacts]]
+source = "/app"
+exclude = [".axx", ".git"]

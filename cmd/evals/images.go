@@ -27,20 +27,28 @@ func cmdImages(args []string) error {
 	fs := flag.NewFlagSet("images", flag.ExitOnError)
 	root := fs.String("root", "", "the evals directory")
 	noCache := fs.Bool("no-cache", false, "build without Docker's cache")
+	source := fs.String("axx-source", "", "test the axx of this checkout instead of the release images/base/axx.env names")
 	_ = fs.Parse(args)
 	dir, err := evalsRoot(*root)
 	if err != nil {
 		return err
 	}
-	return buildImages(dir, *noCache)
+	return buildImages(dir, *noCache, *source)
 }
 
 // buildImages builds the evals images from the repository, with the axx
-// release images/base/axx.env names.
-func buildImages(dir string, noCache bool) error {
+// release images/base/axx.env names, or the axx of the checkout at source.
+func buildImages(dir string, noCache bool, source string) error {
 	release, err := axxRelease(dir)
 	if err != nil {
 		return err
+	}
+	dev, err := prepareDevAxx(context.Background(), dir, source)
+	if err != nil {
+		return err
+	}
+	if dev != nil {
+		release = dev
 	}
 	extra := []string{}
 	if noCache {

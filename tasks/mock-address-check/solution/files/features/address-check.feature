@@ -17,7 +17,7 @@ Feature: Address check at registration
     And the request payload properties are:
       | reference          | PX-ADDR-CHECK-001 |
       | sender             | shop-addr-check   |
-      | recipient.postcode | 10317             |
+      | recipient.postcode | "10317"           |
       | recipient.country  | DE                |
     When the request is executed
     Then the response status code is 201
@@ -34,7 +34,7 @@ Feature: Address check at registration
       | reference          | PX-ADDR-ZONE-001 |
       | sender             | shop-addr-zone   |
       | recipient.city     | Lyon             |
-      | recipient.postcode | 69002            |
+      | recipient.postcode | "69002"          |
       | recipient.country  | FR               |
     When the request is executed
     Then the response status code is 201
@@ -48,7 +48,7 @@ Feature: Address check at registration
     And the request payload properties for 1st ordered request are:
       | reference          | PX-ADDR-NODELIVERY-001 |
       | sender             | shop-addr-nodelivery   |
-      | recipient.postcode | 99920                  |
+      | recipient.postcode | "99920"                |
       | recipient.country  | DE                     |
     And a 2nd ordered GET request to /api/parcels/PX-ADDR-NODELIVERY-001
     When the 1st ordered request is executed

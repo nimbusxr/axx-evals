@@ -17,7 +17,7 @@ Feature: Parcel lifecycle
       | weightGrams        | 1500            |
       | serviceLevel       | EXPRESS         |
       | recipient.name     | Ada Register    |
-      | recipient.postcode | 10115           |
+      | recipient.postcode | "10115"         |
       | recipient.country  | DE              |
     When the request is executed
     Then the response status code is 201

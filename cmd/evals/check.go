@@ -50,7 +50,7 @@ func cmdCheck(args []string) error {
 		return err
 	}
 	if *images {
-		if err := buildImages(dir, false); err != nil {
+		if err := buildImages(dir, false, ""); err != nil {
 			return err
 		}
 	}

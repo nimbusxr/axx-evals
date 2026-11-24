@@ -48,13 +48,14 @@ func cmdRun(args []string) error {
 	agent := fs.String("agent", "", "Harbor agent: opencode, the one the evals compare (oracle and nop check the plumbing)")
 	model := fs.String("model", "", "model for the agent, e.g. openrouter/openai/gpt-6-luna")
 	smallModel := fs.String("small-model", "", "OpenCode's small model (session titles and other side tasks): default the model under test; auto leaves OpenCode's choice")
-	condList := fs.String("conditions", "none,skills,mcp,both,plain", "conditions from conditions.toml")
+	condList := fs.String("conditions", "none,skills,mcp,both,plain,nosite", "conditions from conditions.toml")
 	only := fs.String("tasks", "", "comma-separated task ids (default: all)")
 	shard := fs.String("shard", "", "run one part of the tasks, i/n: the tasks whose place in name order is i modulo n (CI splits a run across jobs this way)")
 	attempts := fs.Int("attempts", 1, "trials per task and condition (harbor -k)")
 	concurrency := fs.Int("concurrency", 2, "concurrent trials (harbor -n); each trial runs its own databases")
 	pending := fs.Bool("include-pending", false, "also run tasks whose required packs are missing")
 	skipImages := fs.Bool("skip-images", false, "do not rebuild the images")
+	axxSource := fs.String("axx-source", "", "test the axx of this checkout instead of the release images/base/axx.env names")
 	harbor := fs.String("harbor", "harbor", "the harbor command")
 	jobsDir := fs.String("jobs-dir", "", "where Harbor writes jobs (default .work/jobs)")
 	out := fs.String("out", "", "result file without extension (default results/<date>-<agent>)")
@@ -87,8 +88,9 @@ func cmdRun(args []string) error {
 			return fmt.Errorf("unknown condition %q (see conditions.toml)", n)
 		}
 	}
+	withAgentsPath(dir)
 	if !*skipImages && !*dry {
-		if err := buildImages(dir, false); err != nil {
+		if err := buildImages(dir, false, *axxSource); err != nil {
 			return err
 		}
 	}
@@ -124,7 +126,7 @@ func cmdRun(args []string) error {
 		}
 		defer mp.stop()
 	}
-	jobs := map[string]string{}
+	jobs := map[string][]string{}
 	var skipped []results.Skipped
 	var failed []string // conditions whose harbor run failed
 	for _, n := range names {
@@ -137,7 +139,7 @@ func cmdRun(args []string) error {
 		skipped = append(skipped, sk...)
 		jobName := runID + "-" + n
 		hargs := []string{
-			"run", "-p", dataset, "-a", *agent, "-o", *jobsDir, "--job-name", jobName,
+			"run", "-p", dataset, "-a", harborAgent(*agent, c), "-o", *jobsDir, "--job-name", jobName,
 			"-n", strconv.Itoa(*concurrency), "-k", strconv.Itoa(*attempts), "-y",
 		}
 		hargs = append(hargs, "-c", retryConfig)
@@ -160,7 +162,7 @@ func cmdRun(args []string) error {
 			hargs = append(hargs, "--agent-timeout-multiplier", agentTimeoutMultiplier)
 		}
 		fmt.Printf("== condition %s: %s %s\n", n, *harbor, strings.Join(hargs, " "))
-		jobs[n] = filepath.Join(*jobsDir, jobName)
+		jobs[n] = []string{filepath.Join(*jobsDir, jobName)}
 		if *dry {
 			continue
 		}
@@ -172,7 +174,7 @@ func cmdRun(args []string) error {
 			failed = append(failed, n)
 		}
 		if mp != nil {
-			if err := mp.writeWaits(jobs[n]); err != nil {
+			if err := mp.writeWaits(jobs[n][0]); err != nil {
 				return fmt.Errorf("writing the rate-limit waits of condition %s: %w", n, err)
 			}
 		}
@@ -293,4 +295,28 @@ func shardTasks(dir, shard string, only []string) ([]string, error) {
 		return nil, fmt.Errorf("--shard %s has no tasks", shard)
 	}
 	return out, nil
+}
+
+// blockingAgent is Harbor's OpenCode agent as the evals run it under a
+// condition that blocks hosts (agents/evals_opencode.py): it blocks them as its
+// run starts, after Harbor has installed it.
+const blockingAgent = "evals_opencode:EvalsOpenCode"
+
+// harborAgent is the agent Harbor runs for a condition: OpenCode blocks a
+// condition's hosts only once installed, since its install needs GitHub.
+func harborAgent(agent string, c Condition) string {
+	if agent == "opencode" && len(c.Blocked) > 0 {
+		return blockingAgent
+	}
+	return agent
+}
+
+// withAgentsPath puts the evals' own Harbor agents (agents/) on Python's
+// path, for Harbor to import blockingAgent.
+func withAgentsPath(evalsDir string) {
+	p := filepath.Join(evalsDir, "agents")
+	if old := os.Getenv("PYTHONPATH"); old != "" {
+		p += string(os.PathListSeparator) + old
+	}
+	_ = os.Setenv("PYTHONPATH", p)
 }
