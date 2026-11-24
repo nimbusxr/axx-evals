@@ -8,3 +8,6 @@
 .DS_Store
 # The axx of a checkout under test (evals images --axx-source).
 /images/base/axx-dev/
+
+# Python's compiled files (agents/).
+__pycache__/
